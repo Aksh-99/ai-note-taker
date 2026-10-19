@@ -1,0 +1,44 @@
+# Python build and cache files
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets: never commit real API keys. .env.example (added later) is the template.
+.env
+.env.*
+!.env.example
+
+# Large media and model files stay out of git
+*.mp3
+*.wav
+*.m4a
+*.flac
+*.ogg
+*.mp4
+*.webm
+*.bin
+*.pt
+*.pth
+*.safetensors
+*.onnx
+*.gguf
+models/
+data/raw/
+data/audio/
+
+# Notebooks checkpoints and OS / editor clutter
+.ipynb_checkpoints/
+.DS_Store
+.idea/
+.vscode/

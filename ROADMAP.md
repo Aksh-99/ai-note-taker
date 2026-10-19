@@ -7,7 +7,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 
 ## Phase 0: Foundations
 - [x] 0.1 Repo scaffold: README, ROADMAP, DEVLOG
-- [ ] 0.2 Python project setup: `pyproject.toml`, `src/notetaker/` package, `.gitignore`, `requirements.txt`
+- [x] 0.2 Python project setup: `pyproject.toml`, `src/notetaker/` package, `.gitignore`, `requirements.txt`
 - [ ] 0.3 Tooling: ruff + pytest config, one smoke test, `Makefile` with `make test` / `make lint`
 - [ ] 0.4 GitHub Actions CI: lint + tests on every push
 - [ ] 0.5 Config module (pydantic-settings) and `.env.example` documenting every setting

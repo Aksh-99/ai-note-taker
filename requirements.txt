@@ -1,0 +1,5 @@
+# Dependencies are declared in pyproject.toml. This file just installs the
+# package in editable mode (-e) with its dev tools, so `pip install -r
+# requirements.txt` and `pip install -e ".[dev]"` do the same thing.
+# Editable mode means code changes in src/ take effect without reinstalling.
+-e .[dev]

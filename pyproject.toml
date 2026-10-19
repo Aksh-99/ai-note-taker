@@ -1,0 +1,41 @@
+# pyproject.toml is the single modern config file for a Python project.
+# It tells pip how to build and install the package, lists dependencies,
+# and (in later steps) holds tool settings for ruff and pytest.
+
+[build-system]
+# setuptools is the standard, free build backend. pip uses it to turn the
+# source in src/ into an installable package.
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "notetaker"
+version = "0.1.0"
+description = "AI lecture note taker built on free, open models"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Akshara Gopakumar" }]
+
+# Runtime dependencies are added step by step as features land, so the
+# install stays small and every listed package is actually used.
+dependencies = []
+
+[project.optional-dependencies]
+# "Extras" are optional groups of packages. Install the dev tools with:
+#   pip install -e ".[dev]"
+dev = [
+    "pytest>=8",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+# This creates a `notetaker` command on your PATH after install. It calls
+# the main() function in src/notetaker/cli.py.
+notetaker = "notetaker.cli:main"
+
+[tool.setuptools.packages.find]
+# The "src layout": code lives in src/notetaker rather than at the repo root.
+# This forces tests to import the *installed* package, which catches
+# packaging mistakes (like a missing file) that a root layout would hide.
+where = ["src"]
