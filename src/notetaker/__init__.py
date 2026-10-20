@@ -1,4 +1,4 @@
-"""notetaker: turn lecture recordings into notes, flashcards, and searchable transcripts.
+"""notetaker: turn lecture recordings into notes, flashcards, and searchable text.
 
 This file marks the folder as a Python package. Anything defined here is
 available as `notetaker.<name>` after `import notetaker`.

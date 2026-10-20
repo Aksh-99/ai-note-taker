@@ -39,3 +39,38 @@ notetaker = "notetaker.cli:main"
 # This forces tests to import the *installed* package, which catches
 # packaging mistakes (like a missing file) that a root layout would hide.
 where = ["src"]
+
+# ---------------------------------------------------------------------------
+# Tool settings. Keeping them here (instead of separate ruff.toml / pytest.ini
+# files) means one file describes the whole project.
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+# Where pytest looks for tests, so `pytest` works from the repo root.
+testpaths = ["tests"]
+# -ra: print a short summary of anything that did not pass (skips, xfails).
+# --strict-markers: a typo in a @pytest.mark.<name> becomes an error
+#   instead of silently creating a new, unused marker.
+addopts = "-ra --strict-markers"
+# Markers must be declared because of --strict-markers above. "slow" is for
+# tests that load real models; CI will skip them with `-m "not slow"`.
+markers = [
+    "slow: loads real models or audio; skipped in CI",
+]
+
+[tool.ruff]
+# ruff is one fast tool that replaces flake8 (lint), isort (import order)
+# and black (formatting).
+line-length = 88
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Rule families ruff checks. Each letter code is a family of rules:
+#   E, W = pycodestyle (basic style errors and warnings)
+#   F    = pyflakes (real bugs: unused imports, undefined names)
+#   I    = isort (imports sorted and grouped)
+#   B    = bugbear (common bug patterns, e.g. mutable default arguments)
+#   UP   = pyupgrade (use modern syntax for our minimum Python version)
+#   SIM  = simplify (flags needlessly complicated code)
+select = ["E", "W", "F", "I", "B", "UP", "SIM"]
