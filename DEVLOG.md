@@ -4,6 +4,23 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-10-20 · Step 0.4: GitHub Actions CI
+
+**What I did**
+- Added `.github/workflows/ci.yml`, which runs `make lint` and `make test` on every push to `main`, every pull request, and on demand from the Actions tab
+- Tests run on both Python 3.10 (the oldest version the package supports) and 3.12, using a build matrix
+- Turned on pip caching, auto-cancel of outdated runs, a 15-minute timeout, and read-only permissions for the workflow
+- Added a CI status badge to the top of `README.md`
+- Checked locally: the workflow file passes `actionlint`, and `make check` (lint plus all 5 tests) is clean
+
+**How it works**
+GitHub Actions is a free service that starts a fresh Linux machine whenever an event like a push happens, then runs the steps listed in the workflow file: download the code, install Python, install the package with `make install`, then run `make lint` and `make test`. If any step fails, the commit gets a red X and the badge turns red, so a broken change is caught right away instead of weeks later. Using the same `make` commands locally and in CI means a passing `make check` on my laptop predicts a passing CI run. The matrix runs the identical job once per Python version, which catches code that accidentally depends on a newer language feature. CI deliberately skips tests marked `slow` and never calls a live LLM or downloads model weights, so it stays fast, free, and does not need any API keys.
+
+**Next up**
+Step 0.5: Config module (pydantic-settings) and `.env.example` documenting every setting.
+
+---
+
 ## 2026-10-19 · Step 0.3: Tooling (ruff, pytest, Makefile)
 
 **What I did**

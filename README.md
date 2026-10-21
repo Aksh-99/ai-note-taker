@@ -1,5 +1,7 @@
 # ai-note-taker
 
+[![CI](https://github.com/Aksh-99/ai-note-taker/actions/workflows/ci.yml/badge.svg)](https://github.com/Aksh-99/ai-note-taker/actions/workflows/ci.yml)
+
 An AI note taker that listens to lecture recordings and turns them into study material. Built end to end on free, open models.
 
 **What it does**
