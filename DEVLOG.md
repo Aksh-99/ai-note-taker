@@ -4,6 +4,23 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-10-21 · Step 0.5: Config module and `.env.example`
+
+**What I did**
+- Added `src/notetaker/config.py`: one typed `Settings` class (built on pydantic-settings) holding every knob the roadmap needs, grouped by phase: paths, Whisper model/device/precision/language/sample rate, LLM provider/model/temperature, Ollama URL, free-tier API keys, and the embedding model
+- Added `.env.example`, a commented template documenting every setting with its default and allowed values
+- Added a `notetaker config` command that prints the active settings with API keys masked, and prints a clear error (exit code 1) for invalid values
+- Added `pydantic-settings` as the first runtime dependency and a Configuration section to the README
+- Added 16 tests in `tests/test_config.py` covering defaults, env vars, `.env`, priority order, invalid values, blank values, secret masking, and a guard test that fails if a setting is ever missing from `.env.example`; `make check` passes (21 tests, lint clean) in a fresh virtualenv
+
+**How it works**
+Instead of hard-coding values like "use the small Whisper model" across many files, every module asks `get_settings()` for them. pydantic-settings looks for each value in three places, in priority order: a real environment variable such as `NOTETAKER_WHISPER_MODEL=base`, then a `.env` file, then the default in the code. It also checks each value against its type, so a typo like `smal` or a temperature of 5 fails immediately at startup with a readable message instead of breaking halfway through a long job. Choices like the LLM provider are restricted to a fixed list (`ollama`, `groq`, `huggingface`), which also enforces the free-models-only rule in code. API keys are stored as `SecretStr`, which prints as asterisks, so they cannot leak into logs; the real `.env` is gitignored and only the blank template is committed. `get_settings()` is cached, so the environment is read once and the whole program shares one settings object.
+
+**Next up**
+Step 1.1: Audio loading and normalization (ffmpeg, 16 kHz mono) with tests on a tiny generated clip.
+
+---
+
 ## 2026-10-20 · Step 0.4: GitHub Actions CI
 
 **What I did**

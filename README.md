@@ -20,5 +20,15 @@ An AI note taker that listens to lecture recordings and turns them into study ma
 ## Stack
 Python · faster-whisper · Hugging Face Transformers + PEFT · Ollama / Groq free tier · LangGraph · sentence-transformers · FAISS · FastAPI · Gradio · GitHub Actions · Hugging Face Spaces
 
+## Configuration
+All settings come from environment variables (prefixed `NOTETAKER_`) or a local `.env` file. Start from the template, then check what the app picked up:
+
+```bash
+cp .env.example .env
+notetaker config
+```
+
+The defaults are free and local (faster-whisper `small`, Ollama), so no API key is needed. `.env` is gitignored.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.
