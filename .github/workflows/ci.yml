@@ -54,16 +54,21 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      # 3. Install the package plus dev tools (pytest, ruff).
+      # 3. Make sure ffmpeg (used by audio.py) is available. GitHub's Ubuntu
+      #    image usually ships it; install it only if it is missing.
+      - name: Install ffmpeg
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
+
+      # 4. Install the package plus dev tools (pytest, ruff).
       - name: Install
         run: |
           python -m pip install --upgrade pip
           make install
 
-      # 4. Lint and format check. Fails the build on any ruff complaint.
+      # 5. Lint and format check. Fails the build on any ruff complaint.
       - name: Lint
         run: make lint
 
-      # 5. Run the fast test suite (slow tests are skipped).
+      # 6. Run the fast test suite (slow tests are skipped).
       - name: Test
         run: make test

@@ -4,6 +4,24 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-10-22 · Step 1.1: Audio loading and normalization
+
+**What I did**
+- Added `src/notetaker/audio.py` with `load_audio(path)`, which turns any file ffmpeg can read (mp3, wav, m4a, mp4 video, ...) into a 16 kHz mono float32 NumPy array in [-1, 1), the exact format Whisper expects
+- Added helpers: `peak_normalize` (consistent volume for quiet recordings), `duration_seconds`, and `save_wav` (writes 16-bit mono WAV with Python's built-in `wave` module, for caching and for chunking in Step 1.4)
+- Added clear error types: `FFmpegNotFoundError` with install instructions, and `AudioLoadError` for missing, corrupt, or non-audio files
+- The default sample rate comes from the config module (`NOTETAKER_SAMPLE_RATE`, 16000)
+- Added `numpy` as a dependency, an "Install ffmpeg" step in CI, and a Requirements section in the README
+- Added 15 tests in `tests/test_audio.py`; no audio is committed, each test synthesizes a half-second tone with ffmpeg in a temp folder. `make check` passes (36 tests, lint clean) in a fresh virtualenv
+
+**How it works**
+ffmpeg does the hard part: decoding the file, averaging stereo channels down to mono, resampling to 16 kHz, and writing the result as raw 16-bit integers to its standard output. Python reads those bytes through a pipe (no temp files), reinterprets them as int16 with `np.frombuffer`, and divides by 32768 to get floats in [-1, 1). The tests check the math directly: a 440 Hz sine recorded at 44.1 kHz stereo must come back with 8000 samples (0.5 s x 16000), its FFT peak must still be at 440 Hz (bin width 16000 / 8000 = 2 Hz), and its amplitude must still be 0.5. A clip with sin on the left and -sin on the right must decode to near silence, which proves the channels are averaged rather than one being dropped. Peak normalization multiplies the whole signal by one constant, target / max|x[n]|, so it changes loudness without distorting the waveform.
+
+**Next up**
+Step 1.2: Transcribe with faster-whisper (small model), return segments with timestamps.
+
+---
+
 ## 2026-10-21 · Step 0.5: Config module and `.env.example`
 
 **What I did**

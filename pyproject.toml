@@ -22,6 +22,9 @@ authors = [{ name = "Akshara Gopakumar" }]
 dependencies = [
     # Typed settings loaded from environment variables and .env (config.py).
     "pydantic-settings>=2.3",
+    # Arrays for audio waveforms (audio.py). ffmpeg itself is a system
+    # program, not a pip package; see the README for how to install it.
+    "numpy>=1.24",
 ]
 
 [project.optional-dependencies]
