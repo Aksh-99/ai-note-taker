@@ -4,6 +4,24 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-10-23 · Step 1.2: Transcription with faster-whisper
+
+**What I did**
+- Added `src/notetaker/transcribe.py` with `transcribe(audio)`, which takes a file path or a 16 kHz waveform and returns a `Transcript`: a list of `Segment`s (start, end, text, confidence scores), each holding `Word`s with their own timestamps
+- Added `load_model()`, which loads the configured Whisper size once and reuses it, and picks the hardware automatically: GPU with float16 if one is present, otherwise CPU with int8
+- `Transcript` saves to and loads from JSON (`save_json` / `load_json`), so a 90-minute lecture only has to be transcribed once
+- File inputs are always decoded at 16 kHz, even if `NOTETAKER_SAMPLE_RATE` is changed, because Whisper only understands 16 kHz
+- Added `faster-whisper` as a dependency and a README note that model weights download on first use and are never committed
+- Added 12 tests in `tests/test_transcribe.py` using a fake model, so CI never downloads weights. `make check` passes (47 tests, lint clean). The one `slow` test that runs the real `tiny` model could not run in tonight's build sandbox (Hugging Face downloads are blocked there), so run `pytest -m slow` once locally to confirm the end-to-end path
+
+**How it works**
+faster-whisper runs OpenAI's open Whisper weights on CTranslate2, a C++ inference engine that is several times faster than the original PyTorch code. Whisper is an encoder-decoder transformer: the encoder turns 30-second windows of the audio's log-mel spectrogram into feature vectors, and the decoder writes text token by token, also predicting timestamp tokens that mark where each segment starts and ends. Beam search (beam size 5) keeps the 5 most probable partial transcriptions at each step instead of greedily taking the single best token, which usually fixes small mistakes. Word timestamps come from cross-attention: for each output word, the model's attention over the audio frames shows which frames it was "listening to", and aligning those gives each word a start and end time. On CPU the weights are quantized to int8 (an 8-bit integer plus a scale per row), cutting memory about 4x versus float32 for a tiny accuracy cost. For testing I used dependency injection: `transcribe()` accepts any object with a `.transcribe()` method, so the tests hand it a fake model with known outputs and check the conversion exactly, with no download.
+
+**Next up**
+Step 1.3: CLI `notetaker transcribe lecture.mp3` that writes `transcript.json` and `transcript.md`.
+
+---
+
 ## 2026-10-22 · Step 1.1: Audio loading and normalization
 
 **What I did**

@@ -25,6 +25,10 @@ dependencies = [
     # Arrays for audio waveforms (audio.py). ffmpeg itself is a system
     # program, not a pip package; see the README for how to install it.
     "numpy>=1.24",
+    # Whisper speech recognition on the CTranslate2 engine (transcribe.py).
+    # Model weights are NOT part of this install: they download from the
+    # Hugging Face Hub the first time a model is loaded, then stay cached.
+    "faster-whisper>=1.0",
 ]
 
 [project.optional-dependencies]
