@@ -4,6 +4,24 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-10-24 · Step 1.3: `notetaker transcribe` CLI
+
+**What I did**
+- Added a `notetaker transcribe <file>` command that transcribes one recording and writes `transcript.json` and `transcript.md` into `outputs/<file name>/` (or any folder given with `-o`)
+- Options: `--model` (choices come straight from the config's allowed Whisper sizes), `--language`, `--beam-size`, and `--title` for the Markdown heading
+- Added `src/notetaker/export.py` with `format_timestamp` (761.4 s becomes `00:12:41`), `group_paragraphs`, `to_markdown`, and `write_outputs`
+- Clear errors with exit code 1 for a missing file, a bad beam size, a missing ffmpeg, or an unreadable file, instead of a Python traceback
+- Added a Usage section to the README and gitignored `outputs/` so generated transcripts are never committed
+- Added 21 tests (`tests/test_export.py`, `tests/test_cli_transcribe.py`), including an end-to-end run on a generated tone through the real ffmpeg pipeline with a fake model. `make check` passes (68 tests, lint clean) in a fresh virtualenv
+
+**How it works**
+The command is a thin layer: argparse reads the arguments, `transcribe()` from Step 1.2 does the speech recognition, and the export module turns the result into files. Whisper returns sentence-sized segments, so printing one per line would give a 90-minute lecture well over a thousand choppy lines. Instead, consecutive segments are joined into paragraphs, and a new paragraph starts when the gap between one segment's end and the next one's start is at least 2 seconds (a natural pause), or when the paragraph already spans 60 seconds (so a lecturer who never pauses still gets readable blocks). Each paragraph is labelled with its start time, floored to the second, so jumping to that time in a video player lands just before the speech. The JSON file keeps everything (word timestamps, confidence scores) so later steps never need to rerun Whisper. In the tests, pytest's `monkeypatch` temporarily swaps the real `transcribe` function (or just the model loader) for a fake, which lets the whole command run in milliseconds with no model download.
+
+**Next up**
+Step 1.4: Chunk long audio (VAD-based) so 90-minute lectures don't blow up memory.
+
+---
+
 ## 2026-10-23 · Step 1.2: Transcription with faster-whisper
 
 **What I did**

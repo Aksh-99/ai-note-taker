@@ -35,5 +35,15 @@ notetaker config
 
 The defaults are free and local (faster-whisper `small`, Ollama), so no API key is needed. `.env` is gitignored.
 
+## Usage
+Transcribe a lecture recording (any format ffmpeg reads, including video):
+
+```bash
+notetaker transcribe lecture01.mp3                 # writes outputs/lecture01/
+notetaker transcribe lecture01.mp4 -m base -l en   # smaller model, skip language detection
+```
+
+Each run writes two files: `transcript.json` (segments, word timestamps, and confidence scores, used by every later step) and `transcript.md` (readable paragraphs, each labelled with its start time like `[00:12:41]`). Run `notetaker transcribe -h` for all options.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

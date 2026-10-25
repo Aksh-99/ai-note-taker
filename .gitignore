@@ -42,3 +42,6 @@ data/audio/
 .DS_Store
 .idea/
 .vscode/
+
+# Generated transcripts, notes, and flashcards (NOTETAKER_OUTPUT_DIR default)
+outputs/
