@@ -4,6 +4,24 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-10-25 · Step 1.4: VAD-based chunking for long lectures
+
+**What I did**
+- Added `src/notetaker/chunking.py`: an energy-based voice activity detector (pure NumPy, no model download) and `plan_chunks()`, which splits a waveform into consecutive pieces of at most `max_chunk_s` seconds, cutting in the middle of pauses
+- `transcribe()` now splits anything longer than `NOTETAKER_CHUNK_MAX_SECONDS` (new setting, default 300 s; 0 turns it off), transcribes the chunks one at a time, and stitches them into one `Transcript`: timestamps of segments and words are shifted by each chunk's start, segment ids are renumbered 1, 2, 3, ... across chunks
+- Chunks that are pure silence are skipped (Whisper tends to invent text like "Thank you." on silence), and a language auto-detected on the first chunk is locked in for the rest
+- CLI: new `--max-chunk-seconds` option and a progress line per chunk (`chunk 3/18 [00:10:00 - 00:15:00]`)
+- Documented the setting in `.env.example` and the README
+- Added 30 tests (`tests/test_chunking.py`, `tests/test_transcribe_chunked.py`, plus CLI tests) on synthetic tones and pauses where every cut point is known in advance, including a randomized check that chunks always tile the audio exactly. `make check` passes (98 tests, lint clean). Planning the cuts for 90 minutes of audio takes under a second
+
+**How it works**
+The detector slices the audio into 30 ms frames and computes each frame's loudness in decibels, 20 log10(RMS). A frame counts as speech if it is louder than a threshold that adapts to the recording: 35 dB below its 95th-percentile loudness, but never below -50 dB, so quiet recordings still work and faint hiss never counts as speech. Runs of non-speech frames are found in one vectorized pass (pad the silence indicator with zeros, take `np.diff`, and the +1 and -1 entries mark where runs start and end). Cutting is greedy: from the current start, look in the window between half the maximum and the maximum length, pick the longest pause of at least 0.3 s there and cut at its midpoint; if the lecturer never pauses, cut at the quietest frame instead. So every chunk is between 2.5 and 5 minutes except the last, and no cut lands mid-word. Chunks are stored as integer sample ranges, so they tile the signal exactly with no rounding gaps. Each chunk is a NumPy view (a slice, not a copy), and Whisper only ever holds one chunk's decoding state at a time, which bounds its memory regardless of lecture length. One honest limit: the decoded waveform itself is still loaded whole (about 345 MB of float32 for 90 minutes); streaming the decode from ffmpeg would remove that if it ever matters.
+
+**Next up**
+Step 1.5: Benchmark script: real-time factor and memory for tiny/base/small models.
+
+---
+
 ## 2026-10-24 · Step 1.3: `notetaker transcribe` CLI
 
 **What I did**

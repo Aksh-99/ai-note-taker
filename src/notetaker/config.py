@@ -91,6 +91,14 @@ class Settings(BaseSettings):
         gt=0,  # "greater than 0": pydantic rejects 0 or negative numbers.
         description="Audio is resampled to this rate (Hz); Whisper expects 16 kHz.",
     )
+    chunk_max_seconds: float = Field(
+        default=300.0,
+        ge=0.0,
+        description=(
+            "Longest piece of audio sent to Whisper at once. Longer recordings "
+            "are split at pauses. 0 turns chunking off."
+        ),
+    )
 
     # ---- Phase 3: notes generation (LLM) --------------------------------
     llm_provider: LLMProvider = Field(

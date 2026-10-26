@@ -16,6 +16,7 @@ from pydantic import ValidationError
 
 from notetaker import __version__
 from notetaker.audio import AudioError
+from notetaker.chunking import Chunk
 from notetaker.config import WhisperModel, get_settings
 
 
@@ -69,6 +70,15 @@ def build_parser() -> argparse.ArgumentParser:
     tr.add_argument(
         "--title", default=None, help="heading for transcript.md (default: file name)"
     )
+    tr.add_argument(
+        "--max-chunk-seconds",
+        type=float,
+        default=None,
+        help=(
+            "split long recordings at pauses into pieces of at most this many "
+            "seconds (default: NOTETAKER_CHUNK_MAX_SECONDS; 0 = no splitting)"
+        ),
+    )
     return parser
 
 
@@ -86,6 +96,22 @@ def show_config() -> int:
     return 0
 
 
+def print_chunk_progress(index: int, total: int, chunk: Chunk) -> None:
+    """Show which piece of a long recording is being transcribed.
+
+    Passed to transcribe() as a "callback": a function handed to another
+    function, which calls it back at the right moments (here, once per chunk).
+    Silent for short files that fit in a single chunk.
+    """
+    from notetaker.export import format_timestamp
+
+    if total > 1:
+        print(
+            f"  chunk {index}/{total} "
+            f"[{format_timestamp(chunk.start)} - {format_timestamp(chunk.end)}]"
+        )
+
+
 def run_transcribe(args: argparse.Namespace) -> int:
     """Handle `notetaker transcribe`: transcribe one file and write outputs."""
     # Imported here so `notetaker --version` and `notetaker config` do not pay
@@ -99,6 +125,9 @@ def run_transcribe(args: argparse.Namespace) -> int:
         return 1
     if args.beam_size < 1:
         print("Error: --beam-size must be at least 1")
+        return 1
+    if args.max_chunk_seconds is not None and args.max_chunk_seconds < 0:
+        print("Error: --max-chunk-seconds must be 0 or more")
         return 1
     try:
         settings = get_settings()
@@ -118,6 +147,8 @@ def run_transcribe(args: argparse.Namespace) -> int:
             language=args.language,
             beam_size=args.beam_size,
             model_name=model_name,
+            max_chunk_s=args.max_chunk_seconds,
+            on_chunk=print_chunk_progress,
         )
     except AudioError as error:
         # Covers both "ffmpeg is not installed" and "ffmpeg could not read

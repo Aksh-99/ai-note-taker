@@ -45,5 +45,7 @@ notetaker transcribe lecture01.mp4 -m base -l en   # smaller model, skip languag
 
 Each run writes two files: `transcript.json` (segments, word timestamps, and confidence scores, used by every later step) and `transcript.md` (readable paragraphs, each labelled with its start time like `[00:12:41]`). Run `notetaker transcribe -h` for all options.
 
+Long recordings are split automatically at pauses into pieces of at most 5 minutes, transcribed one at a time, and stitched back together with correct timestamps, so a 90-minute lecture never goes to Whisper in one call. Change the limit with `--max-chunk-seconds` (or `NOTETAKER_CHUNK_MAX_SECONDS`); `0` turns splitting off.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

@@ -116,7 +116,14 @@ def test_options_are_passed_through(audio_file, fake_transcribe, tmp_path):
     )
     assert code == 0
     _, kwargs = fake_transcribe[0]
-    assert kwargs == {"language": "en", "beam_size": 1, "model_name": "tiny"}
+    # on_chunk is a function (the progress printer), so check it separately.
+    assert callable(kwargs.pop("on_chunk"))
+    assert kwargs == {
+        "language": "en",
+        "beam_size": 1,
+        "model_name": "tiny",
+        "max_chunk_s": None,  # None = use NOTETAKER_CHUNK_MAX_SECONDS
+    }
     assert (out / "transcript.md").read_text().startswith("# Lecture 1: Vectors")
 
 
@@ -135,6 +142,28 @@ def test_missing_file_fails_cleanly(fake_transcribe, capsys):
 
 def test_bad_beam_size_fails_cleanly(audio_file, fake_transcribe):
     assert main(["transcribe", str(audio_file), "--beam-size", "0"]) == 1
+
+
+def test_max_chunk_seconds_is_passed_through(audio_file, fake_transcribe):
+    assert main(["transcribe", str(audio_file), "--max-chunk-seconds", "120"]) == 0
+    assert fake_transcribe[0][1]["max_chunk_s"] == 120.0
+
+
+def test_negative_max_chunk_seconds_fails_cleanly(audio_file, fake_transcribe):
+    assert main(["transcribe", str(audio_file), "--max-chunk-seconds", "-5"]) == 1
+    assert fake_transcribe == []
+
+
+def test_progress_printer_only_speaks_for_multi_chunk_runs(capsys):
+    from notetaker.chunking import Chunk
+    from notetaker.cli import print_chunk_progress
+
+    chunk = Chunk(start_sample=9_600_000, end_sample=14_400_000, sample_rate=16000,
+                  speech_ratio=0.8)  # fmt: skip
+    print_chunk_progress(1, 1, chunk)
+    assert capsys.readouterr().out == ""
+    print_chunk_progress(3, 18, chunk)
+    assert capsys.readouterr().out == "  chunk 3/18 [00:10:00 - 00:15:00]\n"
 
 
 def test_unknown_model_is_rejected_by_argparse(audio_file):

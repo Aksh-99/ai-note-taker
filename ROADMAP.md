@@ -16,7 +16,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 1.1 Audio loading + normalization (ffmpeg, 16kHz mono) with tests on a tiny generated clip
 - [x] 1.2 Transcribe with faster-whisper (small model), return segments with timestamps
 - [x] 1.3 CLI: `notetaker transcribe lecture.mp3` writes `transcript.json` + `transcript.md`
-- [ ] 1.4 Chunk long audio (VAD-based) so 90-minute lectures don't blow up memory
+- [x] 1.4 Chunk long audio (VAD-based) so 90-minute lectures don't blow up memory
 - [ ] 1.5 Benchmark script: real-time factor and memory for tiny/base/small models
 
 ## Phase 2: Evaluation set (the ML-engineer part)

@@ -26,13 +26,19 @@ Design note (dependency injection):
     (and CI) never downloads a model. This "pass the heavy dependency in"
     pattern is called dependency injection, and it is the standard way to make
     ML code testable.
+
+Long recordings (Step 1.4):
+    Audio longer than `NOTETAKER_CHUNK_MAX_SECONDS` (5 minutes by default) is
+    split at pauses by `notetaker.chunking`, each chunk is transcribed on its
+    own, and the results are stitched back together with every timestamp
+    shifted by the chunk's start time. Callers see one ordinary Transcript.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
-from dataclasses import asdict, dataclass, field
+from collections.abc import Callable, Iterable
+from dataclasses import asdict, dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Protocol
@@ -40,6 +46,7 @@ from typing import Any, Protocol
 import numpy as np
 
 from notetaker.audio import load_audio
+from notetaker.chunking import Chunk, plan_chunks
 from notetaker.config import get_settings
 
 # Whisper only understands 16 kHz audio. faster-whisper assumes any NumPy array
@@ -251,6 +258,32 @@ def _convert_segment(raw: Any) -> Segment:
     )
 
 
+def shift_segment(segment: Segment, offset: float, new_id: int) -> Segment:
+    """Move a segment (and its words) later in time by `offset` seconds.
+
+    Whisper timestamps each chunk from 0, so a segment at 12.0 s inside a chunk
+    that starts at 600 s really happened at 612 s of the lecture. Segments are
+    frozen dataclasses, so instead of editing one in place we build a copy
+    with `dataclasses.replace`, which copies every field except those named.
+    """
+    words = [
+        replace(w, start=round(w.start + offset, 3), end=round(w.end + offset, 3))
+        for w in segment.words
+    ]
+    return replace(
+        segment,
+        id=new_id,
+        start=round(segment.start + offset, 3),
+        end=round(segment.end + offset, 3),
+        words=words,
+    )
+
+
+# Type of the optional progress callback: called as on_chunk(index, total,
+# chunk) just before each chunk is transcribed (index counts from 1).
+ChunkCallback = Callable[[int, int, Chunk], None]
+
+
 def transcribe(
     audio: str | Path | np.ndarray,
     model: SpeechModel | None = None,
@@ -259,6 +292,8 @@ def transcribe(
     beam_size: int = 5,
     word_timestamps: bool = True,
     model_name: str | None = None,
+    max_chunk_s: float | None = None,
+    on_chunk: ChunkCallback | None = None,
 ) -> Transcript:
     """Transcribe a file or waveform into a timestamped `Transcript`.
 
@@ -268,19 +303,27 @@ def transcribe(
         model: a loaded model. Leave as None to load the configured one; tests
             pass a fake here.
         language: spoken language code like "en". None uses the configured
-            value; if that is also empty, Whisper detects the language.
+            value; if that is also empty, Whisper detects the language (on the
+            first chunk, and that answer is reused for the rest).
         beam_size: how many candidate transcriptions the decoder keeps at each
             step (beam search). 1 is greedy and fastest; 5 is Whisper's
             standard setting and is usually a little more accurate.
         word_timestamps: also return per-word start and end times.
         model_name: label stored in the result. Defaults to the configured
             model size.
+        max_chunk_s: longest piece sent to the model at once, in seconds.
+            None uses NOTETAKER_CHUNK_MAX_SECONDS; 0 disables chunking.
+        on_chunk: optional progress callback, see `ChunkCallback`.
     """
     if beam_size < 1:
         raise ValueError(f"beam_size must be at least 1, got {beam_size}")
     settings = get_settings()
     language = language or settings.language
     model_name = model_name or settings.whisper_model
+    if max_chunk_s is None:
+        max_chunk_s = settings.chunk_max_seconds
+    if max_chunk_s < 0:
+        raise ValueError(f"max_chunk_s must be >= 0, got {max_chunk_s}")
 
     # Decode with our own loader so every input path goes through the same
     # tested ffmpeg pipeline (mono, 16 kHz, float32 in [-1, 1)).
@@ -293,24 +336,59 @@ def transcribe(
             f"Expected a 1-D mono waveform, got an array of shape {waveform.shape}"
         )
 
+    if max_chunk_s > 0:
+        chunks = plan_chunks(waveform, WHISPER_SAMPLE_RATE, max_chunk_s)
+    else:
+        chunks = [Chunk(0, len(waveform), WHISPER_SAMPLE_RATE, speech_ratio=1.0)]
+
     if model is None:
         model = load_model(model_name)
 
-    raw_segments, info = model.transcribe(
-        waveform,
-        language=language,
-        beam_size=beam_size,
-        word_timestamps=word_timestamps,
-    )
-    # Important: faster-whisper returns a *generator*. No audio is actually
-    # decoded until we loop over it, so this list() is where the real work
-    # (and nearly all the run time) happens.
-    segments = [_convert_segment(raw) for raw in raw_segments]
+    segments: list[Segment] = []
+    detected_language: str | None = None
+    language_probability: float | None = None
+    duration = 0.0
+    for index, chunk in enumerate(chunks, start=1):
+        # Skip chunks that are pure silence: there is nothing to transcribe,
+        # and Whisper is known to "hallucinate" text (e.g. "Thank you.") on
+        # silent input. A recording that fits in one chunk is always sent,
+        # so Whisper itself decides what a short clip contains.
+        if len(chunks) > 1 and chunk.speech_ratio == 0.0:
+            duration += chunk.duration
+            continue
+        if on_chunk is not None:
+            on_chunk(index, len(chunks), chunk)
+        # Slicing a NumPy array gives a "view" (no copy), so this costs no
+        # extra memory however long the lecture is.
+        piece = waveform[chunk.start_sample : chunk.end_sample]
+        raw_segments, info = model.transcribe(
+            piece,
+            language=language,
+            beam_size=beam_size,
+            word_timestamps=word_timestamps,
+        )
+        if detected_language is None:
+            detected_language = info.language
+            language_probability = float(info.language_probability)
+            # Lock the language for the remaining chunks, so an auto-detected
+            # English lecture is not suddenly decoded as Welsh in chunk 7.
+            language = language or info.language
+        # Important: faster-whisper returns a *generator*. No audio is actually
+        # decoded until we loop over it, so this loop is where the real work
+        # (and nearly all the run time) happens.
+        for raw in raw_segments:
+            segment = _convert_segment(raw)
+            # Renumber 1, 2, 3, ... (faster-whisper's own convention) so ids
+            # stay unique across chunks instead of restarting in each one.
+            segments.append(shift_segment(segment, chunk.start, len(segments) + 1))
+        duration += float(info.duration)
 
     return Transcript(
         segments=segments,
-        language=info.language,
-        language_probability=round(float(info.language_probability), 4),
-        duration=round(float(info.duration), 3),
+        language=detected_language or language or "",
+        language_probability=round(
+            language_probability if language_probability is not None else 0.0, 4
+        ),
+        duration=round(duration, 3),
         model=model_name,
     )
