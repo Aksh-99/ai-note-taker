@@ -6,6 +6,9 @@ Commands so far:
     notetaker transcribe lecture.mp3
                           transcribe a recording into transcript.json and
                           transcript.md (in outputs/<file name>/ by default)
+    notetaker benchmark lecture.mp3 -m tiny base small
+                          measure speed (real-time factor) and memory of
+                          several Whisper sizes, report in reports/benchmark/
 """
 
 import argparse
@@ -77,6 +80,50 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "split long recordings at pauses into pieces of at most this many "
             "seconds (default: NOTETAKER_CHUNK_MAX_SECONDS; 0 = no splitting)"
+        ),
+    )
+
+    bm = subcommands.add_parser(
+        "benchmark",
+        help="compare speed and memory of Whisper sizes on one recording",
+    )
+    bm.add_argument("audio", type=Path, help="a lecture recording ffmpeg can read")
+    bm.add_argument(
+        "-m",
+        "--models",
+        nargs="+",  # one or more values: -m tiny base small
+        choices=get_args(WhisperModel),
+        default=["tiny", "base", "small"],
+        help="Whisper sizes to compare (default: tiny base small)",
+    )
+    bm.add_argument(
+        "--repeats", type=int, default=1, help="timed runs per model (median kept)"
+    )
+    bm.add_argument(
+        "--beam-size", type=int, default=5, help="beam search width (1 = greedy)"
+    )
+    bm.add_argument(
+        "-l", "--language", default=None, help="language code like 'en' (default: auto)"
+    )
+    bm.add_argument(
+        "--max-seconds",
+        type=float,
+        default=None,
+        help="only use the first N seconds of the recording, for a quicker run",
+    )
+    bm.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=Path("reports/benchmark"),
+        help="folder for benchmark.json + benchmark.md (default: reports/benchmark)",
+    )
+    bm.add_argument(
+        "--no-isolate",
+        action="store_true",
+        help=(
+            "run all models in this process (faster start-up, but the memory "
+            "numbers of later models include earlier ones)"
         ),
     )
     return parser
@@ -168,6 +215,74 @@ def run_transcribe(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_benchmark(args: argparse.Namespace) -> int:
+    """Handle `notetaker benchmark`: time each model and write a report."""
+    from notetaker.benchmark import (
+        WHISPER_SAMPLE_RATE,
+        benchmark_model,
+        load_benchmark_audio,
+        run_isolated,
+        write_report,
+    )
+
+    audio_path: Path = args.audio
+    if not audio_path.is_file():
+        print(f"Error: file not found: {audio_path}")
+        return 1
+    if args.repeats < 1 or args.beam_size < 1:
+        print("Error: --repeats and --beam-size must be at least 1")
+        return 1
+    try:
+        get_settings()
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+
+    options = {
+        "repeats": args.repeats,
+        "beam_size": args.beam_size,
+        "language": args.language,
+    }
+    results = []
+    try:
+        # Decode once up front: this validates the file before any model loads,
+        # and the in-process mode reuses the waveform for every model.
+        audio = load_benchmark_audio(audio_path, args.max_seconds)
+        seconds = len(audio) / WHISPER_SAMPLE_RATE
+        print(f"Benchmarking {audio_path} ({seconds:.1f} s of audio)")
+        for name in args.models:
+            print(f"  whisper-{name} ...", flush=True)
+            try:
+                if args.no_isolate:
+                    result = benchmark_model(audio, name, **options)
+                else:
+                    result = run_isolated(
+                        audio_path, name, max_seconds=args.max_seconds, **options
+                    )
+            except Exception as error:  # noqa: BLE001
+                # One model failing (most often: its weights could not be
+                # downloaded, or it ran out of memory) should not throw away
+                # the numbers already measured for the others.
+                print(f"    failed: {type(error).__name__}: {error}")
+                continue
+            results.append(result)
+            print(
+                f"    load {result.load_seconds:.1f} s, "
+                f"transcribe {result.median_transcribe_seconds:.1f} s, "
+                f"RTF {result.rtf:.3f} ({result.speedup:.1f}x real time)"
+            )
+    except AudioError as error:
+        print(f"Error: {error}")
+        return 1
+
+    if not results:
+        print("Error: no model could be benchmarked (see messages above)")
+        return 1
+    json_path, md_path = write_report(results, args.output_dir, audio_path.name)
+    print(f"Report written:\n  {json_path}\n  {md_path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -181,6 +296,8 @@ def main(argv: list[str] | None = None) -> int:
         return show_config()
     if args.command == "transcribe":
         return run_transcribe(args)
+    if args.command == "benchmark":
+        return run_benchmark(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

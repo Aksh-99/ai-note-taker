@@ -47,5 +47,13 @@ Each run writes two files: `transcript.json` (segments, word timestamps, and con
 
 Long recordings are split automatically at pauses into pieces of at most 5 minutes, transcribed one at a time, and stitched back together with correct timestamps, so a 90-minute lecture never goes to Whisper in one call. Change the limit with `--max-chunk-seconds` (or `NOTETAKER_CHUNK_MAX_SECONDS`); `0` turns splitting off.
 
+Compare the speed and memory of Whisper sizes on your own machine:
+
+```bash
+notetaker benchmark lecture01.mp3 -m tiny base small --max-seconds 600 --repeats 3
+```
+
+This writes `reports/benchmark/benchmark.md` (a table of load time, transcription time, real-time factor, and peak RAM per model) plus `benchmark.json`. Each model runs in its own fresh process so its memory number is not inflated by the models measured before it. Run it once beforehand so model downloads are not counted in the load times.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

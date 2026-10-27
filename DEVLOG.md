@@ -4,6 +4,24 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-10-26 · Step 1.5: Speed and memory benchmark for Whisper sizes
+
+**What I did**
+- Added `src/notetaker/benchmark.py`: `benchmark_model()` loads one Whisper size, times the load and N repeated transcriptions, and records peak memory; `BenchmarkResult` derives the median time, real-time factor (RTF), "x real time", and model RAM; `write_report()` saves `benchmark.json` and a Markdown table `benchmark.md`
+- New CLI command: `notetaker benchmark lecture.mp3 -m tiny base small --repeats 3 --max-seconds 600`, writing to `reports/benchmark/` by default
+- Each model runs in a fresh child process by default (`--no-isolate` turns this off), so memory numbers do not leak from one model into the next
+- If one model fails (download blocked, out of memory), the error is printed and the remaining models still run; the command only fails if none succeed
+- `--max-seconds` benchmarks just the start of a long lecture for a quick estimate
+- Added 20 tests in `tests/test_benchmark.py` using a fake model and a fake clock, so every timing is exactly known, plus a real child-process run with the fake loader. `make check` passes (117 tests, lint clean). The `slow` test with the real `tiny` model could not run tonight (Hugging Face downloads are blocked in the build sandbox), so run `notetaker benchmark` on a real lecture locally to get the first numbers
+
+**How it works**
+The headline metric is the real-time factor: compute time divided by audio length, so RTF 0.25 means an hour of lecture takes 15 minutes, and anything under 1 keeps up with live speech. Each model is timed over several runs and the median is kept, because the first run often pays one-off warm-up costs and the median, unlike the mean, ignores one slow outlier. Timing uses `time.perf_counter`, a high-resolution clock that never jumps when the system time changes. Memory is the process's peak resident set size (the RAM pages it actually used), read from the operating system via Python's `resource` module. A peak can only go up, so measuring tiny, base and small in one process would make every later number include the earlier models; instead each model gets a brand-new Python process ("spawn" start method), and its peak is reported along with the baseline measured just before the model was loaded, so the difference is roughly what the model itself costs. The loader and the clock are passed in as arguments (dependency injection), which is what lets the tests replace them with fakes and check the arithmetic exactly.
+
+**Next up**
+Step 2.1: Script to download a few MIT OpenCourseWare lectures + their official transcripts.
+
+---
+
 ## 2026-10-25 · Step 1.4: VAD-based chunking for long lectures
 
 **What I did**
