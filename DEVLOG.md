@@ -4,6 +4,24 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-10-27 · Step 2.1: Download MIT OCW lectures and official transcripts
+
+**What I did**
+- Added `eval/ocw_lectures.json`, a committed manifest of four first lectures from MIT OpenCourseWare: 18.06 Linear Algebra, 6.006 Algorithms, 6.034 Artificial Intelligence and 6.041 Probability. Everyone evaluates on the same list
+- Added `src/notetaker/evalset.py`: loads and validates the manifest, finds the video (.mp4) and caption (.srt/.vtt) links on each lecture page, parses SRT and WebVTT captions into timed cues, and extracts 16 kHz mono FLAC audio with ffmpeg straight from the video URL
+- New CLI command `notetaker evalset` with `--list`, `--only ID ...`, `--no-audio`, `--force` and `-o`. Output goes to `data/raw/ocw/<id>/` (gitignored: the files are large, and the CC BY-NC-SA license attaches attribution and non-commercial conditions to any copy, so each person downloads their own): `audio.flac`, `reference.json`, `reference.txt`, `meta.json`
+- A manifest entry can give `audio_url` / `transcript_url` directly, which skips the page scan if OCW ever changes its HTML
+- Added 31 tests in `tests/test_evalset.py` with a fake "internet" (a dict from URL to text), plus a real ffmpeg extraction from a generated stereo 44.1 kHz tone that checks the result is 16 kHz mono. `make check` passes (148 tests, lint clean)
+- Honest caveat: the build sandbox cannot reach ocw.mit.edu, so the four page URLs and the page layout have not been checked against the live site yet. Run `notetaker evalset --no-audio` locally first; any lecture that fails prints which manifest field to fill in
+
+**How it works**
+OCW publishes professionally written captions for its lecture videos, and those are the "ground truth" for measuring word error rate in Step 2.3. The downloader reads each lecture page with Python's built-in HTML parser and collects every link, then picks the archive.org .mp4 and the .srt caption file (falling back to any .mp4 and to .vtt). Caption files are blocks separated by blank lines, each with a timing line `00:01:02,500 --> 00:01:05,000` followed by the text; one regular expression handles both SRT (comma before the milliseconds) and WebVTT (dot, optional hours), and formatting tags like `<i>` are stripped. For audio, ffmpeg is given the video URL directly and told to drop the video stream, mix to mono and resample to 16 kHz, so a few hundred MB of video turns into roughly 50 MB of lossless FLAC without the video ever touching the disk. Every file is first written as `name.part` and then renamed: a rename is atomic, so an interrupted run never leaves a truncated file under the real name, which is what makes "skip files that already exist" safe on re-runs. The network and ffmpeg functions are passed into `download_lecture` as arguments (dependency injection), so tests swap in fakes and run offline.
+
+**Next up**
+Step 2.2: Text normalization for fair comparison (case, punctuation, numbers).
+
+---
+
 ## 2026-10-26 · Step 1.5: Speed and memory benchmark for Whisper sizes
 
 **What I did**

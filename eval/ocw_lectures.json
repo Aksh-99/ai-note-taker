@@ -1,0 +1,30 @@
+{
+  "description": "MIT OpenCourseWare lectures used as the transcription evaluation set. Each lecture's official caption file is the human reference transcript. OCW content is licensed CC BY-NC-SA 4.0, so downloads stay in data/raw/ (gitignored) and are never committed. Optional per-lecture keys audio_url and transcript_url override what the downloader finds on the page.",
+  "license": "CC BY-NC-SA 4.0 (https://ocw.mit.edu/pages/privacy-and-terms-of-use/)",
+  "lectures": [
+    {
+      "id": "mit-18.06-lec01",
+      "course": "18.06 Linear Algebra (Spring 2010)",
+      "title": "Lecture 1: The Geometry of Linear Equations",
+      "page_url": "https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/resources/lecture-1-the-geometry-of-linear-equations/"
+    },
+    {
+      "id": "mit-6.006-lec01",
+      "course": "6.006 Introduction to Algorithms (Fall 2011)",
+      "title": "Lecture 1: Algorithmic Thinking, Peak Finding",
+      "page_url": "https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-fall-2011/resources/lecture-1-algorithmic-thinking-peak-finding/"
+    },
+    {
+      "id": "mit-6.034-lec01",
+      "course": "6.034 Artificial Intelligence (Fall 2010)",
+      "title": "Lecture 1: Introduction and Scope",
+      "page_url": "https://ocw.mit.edu/courses/6-034-artificial-intelligence-fall-2010/resources/lecture-1-introduction-and-scope/"
+    },
+    {
+      "id": "mit-6.041-lec01",
+      "course": "6.041 Probabilistic Systems Analysis (Fall 2010)",
+      "title": "Lecture 1: Probability Models and Axioms",
+      "page_url": "https://ocw.mit.edu/courses/6-041-probabilistic-systems-analysis-and-applied-probability-fall-2010/resources/lecture-1-probability-models-and-axioms/"
+    }
+  ]
+}

@@ -55,5 +55,16 @@ notetaker benchmark lecture01.mp3 -m tiny base small --max-seconds 600 --repeats
 
 This writes `reports/benchmark/benchmark.md` (a table of load time, transcription time, real-time factor, and peak RAM per model) plus `benchmark.json`. Each model runs in its own fresh process so its memory number is not inflated by the models measured before it. Run it once beforehand so model downloads are not counted in the load times.
 
+Download the evaluation set (MIT OpenCourseWare lectures plus their official human-made captions, used as reference transcripts for measuring accuracy):
+
+```bash
+notetaker evalset --list                      # show the lectures in eval/ocw_lectures.json
+notetaker evalset                             # audio + transcripts into data/raw/ocw/<id>/
+notetaker evalset --only mit-18.06-lec01      # just one lecture
+notetaker evalset --no-audio                  # transcripts only (a few KB each)
+```
+
+Each lecture folder gets `audio.flac` (16 kHz mono, ready for Whisper), `reference.json` (timed caption cues), `reference.txt`, and `meta.json` (source URLs, license, date). Only the audio track is saved; the video is streamed through ffmpeg and never stored. Re-running skips what is already there (`--force` re-downloads). OCW material is CC BY-NC-SA licensed and large, so `data/raw/` is gitignored and each person downloads their own copy. If OCW changes a page layout, add `audio_url` / `transcript_url` to that lecture in the manifest.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

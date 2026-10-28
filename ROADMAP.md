@@ -20,7 +20,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 1.5 Benchmark script: real-time factor and memory for tiny/base/small models
 
 ## Phase 2: Evaluation set (the ML-engineer part)
-- [ ] 2.1 Script to download a few MIT OpenCourseWare lectures + their official transcripts
+- [x] 2.1 Script to download a few MIT OpenCourseWare lectures + their official transcripts
 - [ ] 2.2 Text normalization for fair comparison (case, punctuation, numbers)
 - [ ] 2.3 WER / CER evaluation with jiwer, results table saved to `reports/`
 - [ ] 2.4 Technical-term recall metric (e.g. "eigenvalue", "backprop") from a curated term list

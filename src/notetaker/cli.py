@@ -9,6 +9,8 @@ Commands so far:
     notetaker benchmark lecture.mp3 -m tiny base small
                           measure speed (real-time factor) and memory of
                           several Whisper sizes, report in reports/benchmark/
+    notetaker evalset     download the MIT OCW evaluation lectures (audio +
+                          official transcripts) into data/raw/ocw/
 """
 
 import argparse
@@ -125,6 +127,39 @@ def build_parser() -> argparse.ArgumentParser:
             "run all models in this process (faster start-up, but the memory "
             "numbers of later models include earlier ones)"
         ),
+    )
+    ev = subcommands.add_parser(
+        "evalset",
+        help="download the MIT OpenCourseWare evaluation lectures + transcripts",
+    )
+    ev.add_argument(
+        "--manifest",
+        type=Path,
+        default=Path("eval/ocw_lectures.json"),
+        help="JSON list of lectures (default: eval/ocw_lectures.json)",
+    )
+    ev.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="where to save them (default: <NOTETAKER_DATA_DIR>/raw/ocw)",
+    )
+    ev.add_argument(
+        "--only",
+        nargs="+",
+        default=None,
+        metavar="ID",
+        help="download just these lecture ids (default: all)",
+    )
+    ev.add_argument("--list", action="store_true", help="list the lectures and exit")
+    ev.add_argument(
+        "--no-audio",
+        action="store_true",
+        help="only download the reference transcripts (a few KB each)",
+    )
+    ev.add_argument(
+        "--force", action="store_true", help="re-download files that already exist"
     )
     return parser
 
@@ -283,6 +318,52 @@ def run_benchmark(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_evalset(args: argparse.Namespace) -> int:
+    """Handle `notetaker evalset`: download the evaluation lectures."""
+    from notetaker.evalset import (
+        EvalSetError,
+        download_lecture,
+        load_manifest,
+        select_lectures,
+    )
+
+    try:
+        specs = select_lectures(load_manifest(args.manifest), args.only)
+    except EvalSetError as error:
+        print(f"Error: {error}")
+        return 1
+    if args.list:
+        for spec in specs:
+            print(f"{spec.id:<20} {spec.course}: {spec.title}")
+        return 0
+    try:
+        out_dir = args.output_dir or get_settings().data_dir / "raw" / "ocw"
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+
+    failures = 0
+    for spec in specs:
+        print(f"{spec.id}: {spec.title}", flush=True)
+        try:
+            files = download_lecture(
+                spec, out_dir, force=args.force, with_audio=not args.no_audio
+            )
+        except Exception as error:  # noqa: BLE001
+            # Network and ffmpeg errors come in many types. One broken lecture
+            # should not stop the others, so report it and carry on.
+            print(f"  failed: {error}")
+            failures += 1
+            continue
+        if files.skipped:
+            print(f"  already downloaded in {files.folder} (use --force to redo)")
+        else:
+            print(f"  saved {files.num_cues} caption cues to {files.folder}")
+    done = len(specs) - failures
+    print(f"{done}/{len(specs)} lectures ready in {out_dir}")
+    return 0 if failures == 0 else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -298,6 +379,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_transcribe(args)
     if args.command == "benchmark":
         return run_benchmark(args)
+    if args.command == "evalset":
+        return run_evalset(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0
