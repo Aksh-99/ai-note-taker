@@ -161,6 +161,25 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument(
         "--force", action="store_true", help="re-download files that already exist"
     )
+    nm = subcommands.add_parser(
+        "normalize",
+        help="print a transcript in the normalized form used for WER scoring",
+    )
+    nm.add_argument(
+        "file",
+        type=Path,
+        help="transcript.json, reference.json, or any plain-text file",
+    )
+    nm.add_argument(
+        "--keep-digits",
+        action="store_true",
+        help='leave numbers as digits instead of spelling them ("3" not "three")',
+    )
+    nm.add_argument(
+        "--keep-fillers",
+        action="store_true",
+        help="keep filler words such as um, uh, hmm",
+    )
     return parser
 
 
@@ -364,6 +383,27 @@ def run_evalset(args: argparse.Namespace) -> int:
     return 0 if failures == 0 else 1
 
 
+def run_normalize(args: argparse.Namespace) -> int:
+    """Handle `notetaker normalize`: show exactly what the WER scorer will see."""
+    from notetaker.normalize import load_text, normalize_text
+
+    try:
+        text = load_text(args.file)
+    except (OSError, ValueError) as error:
+        # OSError: missing/unreadable file. ValueError: bad JSON (the
+        # json module's JSONDecodeError is a subclass of ValueError).
+        print(f"Error: {error}")
+        return 1
+    print(
+        normalize_text(
+            text,
+            numbers_to_words=not args.keep_digits,
+            remove_fillers=not args.keep_fillers,
+        )
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -381,6 +421,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_benchmark(args)
     if args.command == "evalset":
         return run_evalset(args)
+    if args.command == "normalize":
+        return run_normalize(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

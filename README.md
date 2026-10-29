@@ -66,5 +66,12 @@ notetaker evalset --no-audio                  # transcripts only (a few KB each)
 
 Each lecture folder gets `audio.flac` (16 kHz mono, ready for Whisper), `reference.json` (timed caption cues), `reference.txt`, and `meta.json` (source URLs, license, date). Only the audio track is saved; the video is streamed through ffmpeg and never stored. Re-running skips what is already there (`--force` re-downloads). OCW material is CC BY-NC-SA licensed and large, so `data/raw/` is gitignored and each person downloads their own copy. If OCW changes a page layout, add `audio_url` / `transcript_url` to that lecture in the manifest.
 
+Before transcripts are scored, both the model output and the reference go through the same text normalizer (lowercase, no punctuation, caption tags and speaker labels removed, numbers spelled out, filler words dropped), so only real recognition mistakes count. To see exactly what the scorer will compare:
+
+```bash
+notetaker normalize data/raw/ocw/mit-18.06-lec01/reference.json
+notetaker normalize out/transcript.json --keep-digits --keep-fillers
+```
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

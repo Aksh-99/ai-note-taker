@@ -4,6 +4,23 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-10-28 · Step 2.2: Text normalization for fair comparison
+
+**What I did**
+- Added `src/notetaker/normalize.py` with `normalize_text()` / `normalize_words()`: one function that both the reference captions and the model output go through before scoring, so writing-style differences do not count as errors
+- It removes caption clutter (`[LAUGHTER]`, `(APPLAUSE)`, `>>`, speaker labels like `PROFESSOR:` or `GILBERT STRANG:`), lowercases, spells out numbers (`3` -> three, `1,024` -> one thousand twenty four, `2nd` -> second, `50%` -> fifty percent, `3.14` -> three point one four, `$5` -> five dollars), speaks a few symbols (`x²` -> x squared, `+` plus, `=` equals), drops apostrophes and other punctuation, removes filler words (um, uh, hmm) and unifies spellings (ok -> okay)
+- `load_text()` reads the spoken text out of `transcript.json`, `reference.json` or a plain text file
+- New CLI command `notetaker normalize FILE` (with `--keep-digits` and `--keep-fillers`) prints exactly what the WER scorer will see
+- Pure Python, no new dependencies. Added 64 tests in `tests/test_normalize.py`, including "same meaning, different style" pairs that must normalize identically and a check that normalizing twice changes nothing. `make check` passes (212 tests, lint clean)
+
+**How it works**
+Word error rate counts word-level edits between two texts, so "So, there are 3 eigenvalues." versus "so there are three eigenvalues" would score 40% WER even though nothing was misheard. The fix is to map both texts to one canonical form first, which is how the Whisper paper and every published WER number does it. The order of the steps matters: speaker labels are found by their CAPITAL letters, so they are removed before lowercasing; `x²` is translated to "x squared" before Unicode NFKC folding (NFKC would otherwise turn `²` into a plain `2`); thousands separators are removed before ordinals are matched so `1,000th` works. Numbers are spelled by splitting into groups of three digits from the right (2,024 -> [2, 24]), spelling each group under 1000 and appending its scale word (thousand, million, ...). Lookaround regexes check a neighbouring character without consuming it, which is how "1,000" is treated as one number while "1,2,3" stays a list. Parentheses are only stripped when the inside is all capitals, so `(APPLAUSE)` goes but `f(x)` in a math lecture stays. A key property, tested directly, is idempotence: normalizing an already-normalized text changes nothing, so the score never depends on whether a text was cleaned before. Known limit: numbers only go digits -> words, so "nineteen ninety nine" vs "1999" still differ; this is rare and hits every model equally.
+
+**Next up**
+Step 2.3: WER / CER evaluation with jiwer, results table saved to `reports/`.
+
+---
+
 ## 2026-10-27 · Step 2.1: Download MIT OCW lectures and official transcripts
 
 **What I did**
