@@ -73,5 +73,19 @@ notetaker normalize data/raw/ocw/mit-18.06-lec01/reference.json
 notetaker normalize out/transcript.json --keep-digits --keep-fillers
 ```
 
+Score a model on the evaluation set with word error rate (WER) and character error rate (CER). Transcribe each lecture into `outputs/eval/<model>/<id>/`, then point `notetaker wer` at that folder:
+
+```bash
+for d in data/raw/ocw/*/; do
+  id=$(basename "$d")
+  notetaker transcribe "$d/audio.flac" -m small -l en -o "outputs/eval/whisper-small/$id"
+done
+notetaker wer --hyps outputs/eval/whisper-small            # all lectures, report in reports/wer/
+notetaker wer --hyps outputs/eval/whisper-small --max-seconds 600   # first 10 minutes only
+notetaker wer reference.txt my_transcript.txt              # quick score of one pair
+```
+
+This writes `reports/wer/<system>.md` (per-lecture WER, substitutions / deletions / insertions, CER, and the most common word confusions), `<system>.json`, and `reports/wer/summary.md`, a table with one row per model that is rebuilt every time a new model is scored. The headline number is pooled WER: total errors divided by total reference words across all lectures.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

@@ -29,6 +29,10 @@ dependencies = [
     # Model weights are NOT part of this install: they download from the
     # Hugging Face Hub the first time a model is loaded, then stay cached.
     "faster-whisper>=1.0",
+    # Word / character error rate with edit-distance alignment (wer.py).
+    # Small and pure-computation: it uses rapidfuzz's fast C++ Levenshtein.
+    # 3.0.5 is the oldest release that works with current rapidfuzz.
+    "jiwer>=3.0.5",
 ]
 
 [project.optional-dependencies]

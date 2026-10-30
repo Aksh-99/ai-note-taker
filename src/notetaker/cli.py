@@ -11,6 +11,11 @@ Commands so far:
                           several Whisper sizes, report in reports/benchmark/
     notetaker evalset     download the MIT OCW evaluation lectures (audio +
                           official transcripts) into data/raw/ocw/
+    notetaker normalize FILE
+                          print a transcript the way the WER scorer sees it
+    notetaker wer REF HYP score one transcript against a reference
+    notetaker wer --hyps outputs/eval/small --system whisper-small
+                          score a whole folder of lectures, report in reports/wer/
 """
 
 import argparse
@@ -179,6 +184,57 @@ def build_parser() -> argparse.ArgumentParser:
         "--keep-fillers",
         action="store_true",
         help="keep filler words such as um, uh, hmm",
+    )
+    we = subcommands.add_parser(
+        "wer",
+        help="word / character error rate of transcripts against references",
+        description=(
+            "Either give two files (REF HYP) to score one pair, or give --hyps "
+            "to score every lecture in a folder and write a report."
+        ),
+    )
+    # nargs="*" means zero or more values, so both modes share one command.
+    we.add_argument(
+        "files",
+        nargs="*",
+        type=Path,
+        metavar="REF HYP",
+        help="a reference and a transcript file (pair mode)",
+    )
+    we.add_argument(
+        "--refs",
+        type=Path,
+        default=None,
+        help="folder with <id>/reference.json (default: <NOTETAKER_DATA_DIR>/raw/ocw)",
+    )
+    we.add_argument(
+        "--hyps",
+        type=Path,
+        default=None,
+        help="folder with <id>/transcript.json from one model (folder mode)",
+    )
+    we.add_argument(
+        "--system",
+        default=None,
+        help="name for this model in the report (default: the --hyps folder name)",
+    )
+    we.add_argument(
+        "--max-seconds",
+        type=float,
+        default=None,
+        help="only score the first N seconds of each lecture",
+    )
+    we.add_argument(
+        "--no-normalize",
+        action="store_true",
+        help="compare raw text (to see how much normalization matters)",
+    )
+    we.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=Path("reports/wer"),
+        help="folder for the report in folder mode (default: reports/wer)",
     )
     return parser
 
@@ -404,6 +460,81 @@ def run_normalize(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_score(score) -> None:
+    """One-line summary of a PairScore."""
+    w = score.words
+    print(
+        f"{score.name}: WER {100 * score.wer:.2f}% "
+        f"(S={w.substitutions} D={w.deletions} I={w.insertions} "
+        f"of {w.reference_length} words), CER {100 * score.cer:.2f}%"
+    )
+
+
+def run_wer(args: argparse.Namespace) -> int:
+    """Handle `notetaker wer`: score one pair, or a whole folder of lectures."""
+    from notetaker.wer import SystemReport, find_pairs, score_files, write_reports
+
+    if args.max_seconds is not None and args.max_seconds <= 0:
+        print("Error: --max-seconds must be more than 0")
+        return 1
+    options = {"max_seconds": args.max_seconds, "normalize": not args.no_normalize}
+
+    # Pair mode: exactly two files, no folder.
+    if args.files:
+        if len(args.files) != 2 or args.hyps is not None:
+            print("Error: give either two files (REF HYP) or --hyps FOLDER")
+            return 1
+        ref, hyp = args.files
+        try:
+            score = score_files(ref, hyp, name=hyp.name, **options)
+        except (OSError, ValueError) as error:
+            print(f"Error: {error}")
+            return 1
+        _print_score(score)
+        return 0
+
+    # Folder mode.
+    if args.hyps is None:
+        print("Error: give either two files (REF HYP) or --hyps FOLDER")
+        return 1
+    try:
+        refs = args.refs or get_settings().data_dir / "raw" / "ocw"
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+    pairs, missing = find_pairs(refs, args.hyps)
+    for lecture_id in missing:
+        print(f"{lecture_id}: no {args.hyps / lecture_id / 'transcript.json'}, skipped")
+    if not pairs:
+        print(f"Error: no lecture in {refs} has a transcript in {args.hyps}")
+        return 1
+
+    scores = []
+    for lecture_id, ref, hyp in pairs:
+        try:
+            score = score_files(ref, hyp, name=lecture_id, **options)
+        except (OSError, ValueError) as error:
+            print(f"{lecture_id}: failed: {error}")
+            continue
+        _print_score(score)
+        scores.append(score)
+    if not scores:
+        print("Error: no lecture could be scored (see messages above)")
+        return 1
+
+    system = args.system or args.hyps.name
+    if args.no_normalize:
+        system += "-raw"
+    report = SystemReport(system=system, scores=scores)
+    print(
+        f"Pooled over {len(scores)} lecture(s): WER {100 * report.wer:.2f}%, "
+        f"CER {100 * report.cer:.2f}%"
+    )
+    paths = write_reports(report, args.output_dir)
+    print("Report written:\n" + "\n".join(f"  {p}" for p in paths))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -423,6 +554,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_evalset(args)
     if args.command == "normalize":
         return run_normalize(args)
+    if args.command == "wer":
+        return run_wer(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

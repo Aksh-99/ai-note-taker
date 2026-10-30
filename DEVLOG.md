@@ -4,6 +4,24 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-10-29 · Step 2.3: WER / CER evaluation with jiwer
+
+**What I did**
+- Added `src/notetaker/wer.py`: `score_texts()` normalizes a reference and a model transcript (Step 2.2), aligns them with jiwer, and returns word counts (hits, substitutions, deletions, insertions), WER, CER and the most common word confusions (e.g. "equations" heard as "questions")
+- `SystemReport` collects one model's scores over all lectures and computes pooled WER / CER; `write_reports()` saves `reports/wer/<system>.json`, `<system>.md` and rebuilds `reports/wer/summary.md`, a comparison table with one row per model and one WER column per lecture
+- New CLI command `notetaker wer`, in two modes: `notetaker wer REF HYP` scores one pair; `notetaker wer --hyps outputs/eval/whisper-small` matches every `data/raw/ocw/<id>/reference.json` to `<hyps>/<id>/transcript.json` and writes the report. `--max-seconds 600` scores only the first 10 minutes (handy on a CPU laptop), `--no-normalize` shows how much normalization matters, `--system` names the row
+- Added `jiwer>=3.0.5` as a dependency (3.0.0 to 3.0.4 break with current rapidfuzz; checked 3.0.5, 3.1.0 and 4.0.0)
+- Added 27 tests in `tests/test_wer.py` with hand-worked expected numbers, plus a README section on running the evaluation. `make check` passes (239 tests, lint clean)
+- No real numbers yet: the build sandbox cannot reach OCW or download Whisper weights. Run the README loop locally to get the first `reports/wer/summary.md`
+
+**How it works**
+WER is edit distance on words: the minimum number of substitutions (S), deletions (D) and insertions (I) that turn the model's words into the reference's, divided by the number of reference words N. jiwer finds that minimum with the standard Levenshtein dynamic program (a table where cell (i, j) holds the cheapest way to match the first i reference words to the first j model words, filled in from the top left). Because I counts too, WER can go above 100%. CER is the same formula on characters, which is gentler on near-misses: "eigenvalues" vs "eigen values" is 2 word errors but 1 character error, so comparing WER and CER tells you whether mistakes are whole wrong words or just spelling and splitting. Across lectures I pool the counts (sum all errors, divide by all reference words) instead of averaging per-lecture WERs, so every word has equal weight and a short lecture cannot swing the result; that is the convention in the Whisper paper. The `--max-seconds` cut keeps any caption or segment that starts before the cut on both sides, so a sentence crossing the boundary is not half counted. The report stores raw counts in JSON, not just percentages, so later steps (the baseline report in 2.5) can re-pool or compare models without re-scoring.
+
+**Next up**
+Step 2.4: Technical-term recall metric (e.g. "eigenvalue", "backprop") from a curated term list.
+
+---
+
 ## 2026-10-28 · Step 2.2: Text normalization for fair comparison
 
 **What I did**
