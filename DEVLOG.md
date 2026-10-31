@@ -4,6 +4,23 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-10-30 · Step 2.4: Technical-term recall metric
+
+**What I did**
+- Added `eval/technical_terms.json`, a curated list of 60 technical terms grouped by subject (linear algebra, algorithms, AI and probability, matching the four eval lectures, plus general machine learning for later). Each term lists the spellings that count as the same term, e.g. eigenvalue / eigenvalues / eigen value / eigen values
+- Added `src/notetaker/term_recall.py`: loads and validates the list, counts every term in the reference and in the transcript, and computes term recall (spoken terms that made it into the transcript) and term precision (transcribed terms that were really spoken), per lecture, pooled, and by subject, plus a list of the most-missed terms
+- New CLI command `notetaker terms`, with the same two modes as `notetaker wer`: `notetaker terms REF HYP` for one pair, `notetaker terms --hyps outputs/eval/whisper-small` for every lecture, writing `reports/terms/<system>.json`, `<system>.md` and a `summary.md` comparison table. Supports `--max-seconds`, `--terms` (your own list), `--system` and `-o`
+- Pure Python, no new dependencies. Added 31 tests in `tests/test_term_recall.py` (hand-worked numbers, overlap edge cases, report round trips, CLI) and a test that the committed term list loads. `make check` passes (270 tests, lint clean)
+- Still no real numbers: the sandbox cannot download lectures or Whisper weights. Run the README loop locally, then `notetaker terms --hyps ...` next to `notetaker wer`
+
+**How it works**
+WER treats "the" and "eigenvalue" as equally important, but notes are useless if the jargon is wrong, so this metric only looks at a fixed vocabulary of technical terms. Both texts go through the same normalizer as WER (Step 2.2), then for each term t we count R_t, how often it was said in the reference, and H_t, how often it appears in the transcript. Hits are clipped, hits_t = min(R_t, H_t), the same trick BLEU uses, so writing "eigenvalue" 50 times cannot earn more hits than the 5 times it was said. Recall = sum of hits / sum of R_t; precision = sum of hits / sum of H_t, which catches a model inventing jargon. Like WER, lectures are pooled by summing counts before dividing. Counting is alignment-free (it does not care where in the lecture a term appears), which makes it robust to small timing shifts at chunk boundaries; the trade-off is that a miss in one place can be cancelled by a hallucination elsewhere, and precision exposes that. Matching uses an inverted index (word -> list of positions), so each term only checks the spots where its first word occurs, then takes the longest matching spelling and skips past it, so "Gaussian elimination" is one hit, not two.
+
+**Next up**
+Step 2.5: Baseline report: model size vs WER vs speed, written up in `reports/baseline.md`.
+
+---
+
 ## 2026-10-29 · Step 2.3: WER / CER evaluation with jiwer
 
 **What I did**

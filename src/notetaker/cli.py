@@ -16,6 +16,10 @@ Commands so far:
     notetaker wer REF HYP score one transcript against a reference
     notetaker wer --hyps outputs/eval/small --system whisper-small
                           score a whole folder of lectures, report in reports/wer/
+    notetaker terms REF HYP
+                          technical-term recall of one transcript
+    notetaker terms --hyps outputs/eval/small --system whisper-small
+                          term recall over a folder, report in reports/terms/
 """
 
 import argparse
@@ -235,6 +239,58 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("reports/wer"),
         help="folder for the report in folder mode (default: reports/wer)",
+    )
+    te = subcommands.add_parser(
+        "terms",
+        help="technical-term recall of transcripts against references",
+        description=(
+            "Count how many of the curated technical terms spoken in the "
+            "reference also appear in the transcript. Give two files (REF HYP) "
+            "or --hyps to score a folder and write a report."
+        ),
+    )
+    te.add_argument(
+        "files",
+        nargs="*",
+        type=Path,
+        metavar="REF HYP",
+        help="a reference and a transcript file (pair mode)",
+    )
+    te.add_argument(
+        "--terms",
+        type=Path,
+        default=Path("eval/technical_terms.json"),
+        help="curated term list (default: eval/technical_terms.json)",
+    )
+    te.add_argument(
+        "--refs",
+        type=Path,
+        default=None,
+        help="folder with <id>/reference.json (default: <NOTETAKER_DATA_DIR>/raw/ocw)",
+    )
+    te.add_argument(
+        "--hyps",
+        type=Path,
+        default=None,
+        help="folder with <id>/transcript.json from one model (folder mode)",
+    )
+    te.add_argument(
+        "--system",
+        default=None,
+        help="name for this model in the report (default: the --hyps folder name)",
+    )
+    te.add_argument(
+        "--max-seconds",
+        type=float,
+        default=None,
+        help="only score the first N seconds of each lecture",
+    )
+    te.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=Path("reports/terms"),
+        help="folder for the report in folder mode (default: reports/terms)",
     )
     return parser
 
@@ -535,6 +591,98 @@ def run_wer(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_term_score(score) -> None:
+    """One-line summary of a TermScore, plus its three worst misses."""
+    c = score.counts
+    line = (
+        f"{score.name}: term recall {100 * score.recall:.1f}% "
+        f"({c.total_hits} of {c.total_reference} said), "
+        f"precision {100 * score.precision:.1f}%"
+    )
+    worst = c.misses()[:3]
+    if worst:
+        line += "; most missed: " + ", ".join(f"{t} ({g}/{s})" for t, s, g in worst)
+    print(line)
+
+
+def run_terms(args: argparse.Namespace) -> int:
+    """Handle `notetaker terms`: technical-term recall, pair or folder mode."""
+    from notetaker.term_recall import (
+        TermReport,
+        load_terms,
+        score_term_files,
+        write_reports,
+    )
+    from notetaker.wer import find_pairs
+
+    if args.max_seconds is not None and args.max_seconds <= 0:
+        print("Error: --max-seconds must be more than 0")
+        return 1
+    try:
+        terms = load_terms(args.terms)
+    except (OSError, ValueError) as error:
+        print(f"Error: could not load term list: {error}")
+        return 1
+
+    if args.files:
+        if len(args.files) != 2 or args.hyps is not None:
+            print("Error: give either two files (REF HYP) or --hyps FOLDER")
+            return 1
+        ref, hyp = args.files
+        try:
+            score = score_term_files(
+                ref, hyp, terms, name=hyp.name, max_seconds=args.max_seconds
+            )
+        except (OSError, ValueError) as error:
+            print(f"Error: {error}")
+            return 1
+        _print_term_score(score)
+        return 0
+
+    if args.hyps is None:
+        print("Error: give either two files (REF HYP) or --hyps FOLDER")
+        return 1
+    try:
+        refs = args.refs or get_settings().data_dir / "raw" / "ocw"
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+    pairs, missing = find_pairs(refs, args.hyps)
+    for lecture_id in missing:
+        print(f"{lecture_id}: no {args.hyps / lecture_id / 'transcript.json'}, skipped")
+    if not pairs:
+        print(f"Error: no lecture in {refs} has a transcript in {args.hyps}")
+        return 1
+
+    scores = []
+    for lecture_id, ref, hyp in pairs:
+        try:
+            score = score_term_files(
+                ref, hyp, terms, name=lecture_id, max_seconds=args.max_seconds
+            )
+        except (OSError, ValueError) as error:
+            print(f"{lecture_id}: failed: {error}")
+            continue
+        _print_term_score(score)
+        scores.append(score)
+    if not scores:
+        print("Error: no lecture could be scored (see messages above)")
+        return 1
+
+    report = TermReport(
+        system=args.system or args.hyps.name,
+        scores=scores,
+        domains={t.name: t.domain for t in terms},
+    )
+    print(
+        f"Pooled over {len(scores)} lecture(s): term recall "
+        f"{100 * report.recall:.1f}%, precision {100 * report.precision:.1f}%"
+    )
+    paths = write_reports(report, args.output_dir)
+    print("Report written:\n" + "\n".join(f"  {p}" for p in paths))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -556,6 +704,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_normalize(args)
     if args.command == "wer":
         return run_wer(args)
+    if args.command == "terms":
+        return run_terms(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

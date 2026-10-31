@@ -23,7 +23,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 2.1 Script to download a few MIT OpenCourseWare lectures + their official transcripts
 - [x] 2.2 Text normalization for fair comparison (case, punctuation, numbers)
 - [x] 2.3 WER / CER evaluation with jiwer, results table saved to `reports/`
-- [ ] 2.4 Technical-term recall metric (e.g. "eigenvalue", "backprop") from a curated term list
+- [x] 2.4 Technical-term recall metric (e.g. "eigenvalue", "backprop") from a curated term list
 - [ ] 2.5 Baseline report: model size vs WER vs speed, written up in `reports/baseline.md`
 
 ## Phase 3: Notes generation

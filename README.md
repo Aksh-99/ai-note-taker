@@ -87,5 +87,14 @@ notetaker wer reference.txt my_transcript.txt              # quick score of one 
 
 This writes `reports/wer/<system>.md` (per-lecture WER, substitutions / deletions / insertions, CER, and the most common word confusions), `<system>.json`, and `reports/wer/summary.md`, a table with one row per model that is rebuilt every time a new model is scored. The headline number is pooled WER: total errors divided by total reference words across all lectures.
 
+WER weighs every word equally, but for lecture notes the technical vocabulary matters most. Technical-term recall counts how many of the curated terms in `eval/technical_terms.json` (about 60 terms such as "eigenvalue", "dynamic programming", "sample space", "backpropagation", each with the spellings that count as the same term) that the lecturer said also appear in the transcript:
+
+```bash
+notetaker terms --hyps outputs/eval/whisper-small          # all lectures, report in reports/terms/
+notetaker terms reference.txt my_transcript.txt            # quick check of one pair
+```
+
+This writes `reports/terms/<system>.md` (recall and precision per lecture, recall by subject, and the most-missed terms), `<system>.json`, and `reports/terms/summary.md`. Counts are clipped, so a term earns at most as many hits as it was spoken; precision shows whether the model writes jargon that was never said. Edit the term list freely to match your own courses.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.
