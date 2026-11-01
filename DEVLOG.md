@@ -4,6 +4,24 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-10-31 · Step 2.5: Baseline report (model size vs WER vs speed)
+
+**What I did**
+- Added `src/notetaker/baseline.py`, which joins the three Phase 2 measurements (speed and RAM from `reports/benchmark/benchmark.json`, WER / CER from `reports/wer/*.json`, term recall from `reports/terms/*.json`) into one row per Whisper size
+- Report names are matched with `model_key()`, so `whisper-small`, `Whisper Small` and `small` are the same model while `small-int8` or `small-raw` stay separate. Parameter counts come from the Whisper paper (tiny 39M, base 74M, small 244M, medium 769M, large 1550M, plus turbo and distil)
+- The report marks the Pareto frontier, recommends the most accurate model within a real-time-factor budget (default RTF <= 0.5), shows what each size step buys (WER drop in points and relative, vs the compute ratio), lists WER per lecture, and adds caveats when models were not measured the same way (different lectures, different `--max-seconds`, different devices, missing reports)
+- New CLI command `notetaker baseline` (`--wer`, `--terms`, `--benchmark`, `--rtf-budget`, `-o`) writing `reports/baseline.md` and `reports/baseline.json`. Only WER reports are required; missing term or benchmark data shows as n/a
+- Committed `reports/baseline.md` as a placeholder with the exact command loop, since the sandbox cannot download lectures or Whisper weights. Running the loop locally overwrites it with real numbers
+- Pure Python, no new dependencies. Added 38 tests in `tests/test_baseline.py` (hand-worked numbers, NaN handling, duplicate names, comparability checks, end-to-end CLI using the real report writers). `make check` passes (308 tests, lint clean)
+
+**How it works**
+Each model gives a point (WER, RTF): accuracy against speed, lower is better on both. A model is dominated if some other model is at least as good on both axes and strictly better on one; the points nobody dominates are the Pareto frontier, and only those are reasonable choices, because any other model has a free upgrade. To pick one point I fix a speed budget (constrained optimization: minimize WER subject to RTF <= budget), which matches the real requirement: notes should be ready well before the next lecture. The step-up table makes diminishing returns visible: going up a size might cut WER by 40% relative at 2x compute, the next step by 20% at 4x compute. A baseline is only useful if it is comparable, so the report checks that every model was scored on the same lectures with the same audio cut and timed on the same device, and says so loudly when not. Any NaN from an old benchmark file is turned into "missing" on load, because NaN silently breaks comparisons (NaN < x and NaN > x are both false).
+
+**Next up**
+Step 3.1: LLM client abstraction supporting Ollama (local) and Groq / HF free tier (hosted).
+
+---
+
 ## 2026-10-30 · Step 2.4: Technical-term recall metric
 
 **What I did**

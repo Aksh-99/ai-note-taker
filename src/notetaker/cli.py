@@ -20,6 +20,8 @@ Commands so far:
                           technical-term recall of one transcript
     notetaker terms --hyps outputs/eval/small --system whisper-small
                           term recall over a folder, report in reports/terms/
+    notetaker baseline    join benchmark, WER and term reports into
+                          reports/baseline.md (model size vs WER vs speed)
 """
 
 import argparse
@@ -291,6 +293,46 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("reports/terms"),
         help="folder for the report in folder mode (default: reports/terms)",
+    )
+    bl = subcommands.add_parser(
+        "baseline",
+        help="combine benchmark, WER and term reports into reports/baseline.md",
+        description=(
+            "Join the speed benchmark, WER reports and term-recall reports "
+            "into one table per model size, mark the Pareto frontier and "
+            "recommend the most accurate model within a speed budget."
+        ),
+    )
+    bl.add_argument(
+        "--wer",
+        type=Path,
+        default=Path("reports/wer"),
+        help="folder of WER reports (default: reports/wer)",
+    )
+    bl.add_argument(
+        "--terms",
+        type=Path,
+        default=Path("reports/terms"),
+        help="folder of term-recall reports (default: reports/terms)",
+    )
+    bl.add_argument(
+        "--benchmark",
+        type=Path,
+        default=Path("reports/benchmark/benchmark.json"),
+        help="benchmark results (default: reports/benchmark/benchmark.json)",
+    )
+    bl.add_argument(
+        "--rtf-budget",
+        type=float,
+        default=0.5,
+        help="max real-time factor for the recommendation (default: 0.5)",
+    )
+    bl.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=Path("reports/baseline.md"),
+        help="where to write the report (default: reports/baseline.md)",
     )
     return parser
 
@@ -683,6 +725,56 @@ def run_terms(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_baseline(args: argparse.Namespace) -> int:
+    """Handle `notetaker baseline`: the model size vs WER vs speed report."""
+    from notetaker.baseline import (
+        build_rows,
+        load_benchmark,
+        load_term_reports,
+        load_wer_reports,
+        recommend,
+        write_baseline,
+    )
+
+    if args.rtf_budget <= 0:
+        print("Error: --rtf-budget must be more than 0")
+        return 1
+    wer_reports, warnings = load_wer_reports(args.wer)
+    if not wer_reports:
+        print(
+            f"Error: no WER reports in {args.wer}. Run `notetaker wer --hyps ...` "
+            "for at least one model first."
+        )
+        return 1
+    term_reports, term_warnings = load_term_reports(args.terms)
+    warnings += term_warnings
+    try:
+        bench, bench_audio = load_benchmark(args.benchmark)
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        print(f"Warning: could not read {args.benchmark}: {error}")
+        bench, bench_audio = [], None
+    if not term_reports:
+        print(f"Note: no term reports in {args.terms}; term columns will be n/a")
+    if not bench:
+        print(f"Note: no benchmark at {args.benchmark}; speed columns will be n/a")
+
+    rows, join_warnings = build_rows(wer_reports, term_reports, bench)
+    warnings += join_warnings
+    for warning in warnings:
+        print(f"Warning: {warning}")
+    _, reason = recommend(rows, args.rtf_budget)
+    print(f"{len(rows)} model(s). Recommendation: {reason}")
+    paths = write_baseline(
+        rows,
+        args.output,
+        rtf_budget=args.rtf_budget,
+        bench_audio=bench_audio,
+        warnings=warnings,
+    )
+    print("Report written:\n" + "\n".join(f"  {p}" for p in paths))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -706,6 +798,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_wer(args)
     if args.command == "terms":
         return run_terms(args)
+    if args.command == "baseline":
+        return run_baseline(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

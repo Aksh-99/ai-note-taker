@@ -96,5 +96,14 @@ notetaker terms reference.txt my_transcript.txt            # quick check of one 
 
 This writes `reports/terms/<system>.md` (recall and precision per lecture, recall by subject, and the most-missed terms), `<system>.json`, and `reports/terms/summary.md`. Counts are clipped, so a term earns at most as many hits as it was spoken; precision shows whether the model writes jargon that was never said. Edit the term list freely to match your own courses.
 
+Once at least one model has a WER report, combine everything into the baseline report, the reference point for later fine-tuning and quantization:
+
+```bash
+notetaker baseline                    # reads reports/wer, reports/terms, reports/benchmark
+notetaker baseline --rtf-budget 1.0   # allow slower models in the recommendation
+```
+
+This writes `reports/baseline.md` and `reports/baseline.json`: one row per model size with WER, CER, term recall, real-time factor and RAM, the Pareto frontier (models no other model beats on both accuracy and speed), the most accurate model within the speed budget, and what each step up in size buys in WER versus extra compute. Report names are matched across folders, so `whisper-small` in the WER report and `small` in the benchmark land in the same row. See `reports/baseline.md` for the full command loop.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

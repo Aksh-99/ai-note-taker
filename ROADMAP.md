@@ -24,7 +24,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 2.2 Text normalization for fair comparison (case, punctuation, numbers)
 - [x] 2.3 WER / CER evaluation with jiwer, results table saved to `reports/`
 - [x] 2.4 Technical-term recall metric (e.g. "eigenvalue", "backprop") from a curated term list
-- [ ] 2.5 Baseline report: model size vs WER vs speed, written up in `reports/baseline.md`
+- [x] 2.5 Baseline report: model size vs WER vs speed, written up in `reports/baseline.md`
 
 ## Phase 3: Notes generation
 - [ ] 3.1 LLM client abstraction supporting Ollama (local) and Groq / HF free tier (hosted)
