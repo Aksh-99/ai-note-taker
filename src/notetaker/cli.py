@@ -22,6 +22,9 @@ Commands so far:
                           term recall over a folder, report in reports/terms/
     notetaker baseline    join benchmark, WER and term reports into
                           reports/baseline.md (model size vs WER vs speed)
+    notetaker llm "Explain eigenvalues in one sentence"
+                          send one prompt to the configured LLM (Ollama by
+                          default) to check the setup works
 """
 
 import argparse
@@ -33,7 +36,7 @@ from pydantic import ValidationError
 from notetaker import __version__
 from notetaker.audio import AudioError
 from notetaker.chunking import Chunk
-from notetaker.config import WhisperModel, get_settings
+from notetaker.config import LLMProvider, WhisperModel, get_settings
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -334,6 +337,29 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("reports/baseline.md"),
         help="where to write the report (default: reports/baseline.md)",
     )
+    lm = subcommands.add_parser(
+        "llm",
+        help="send one prompt to the configured LLM (setup check)",
+        description=(
+            "Send a single prompt to the LLM chosen in the settings and print "
+            "the reply with token counts and latency. Useful to check that "
+            "Ollama is running or that a free-tier key works."
+        ),
+    )
+    lm.add_argument("prompt", help="the question or instruction to send")
+    lm.add_argument(
+        "-p",
+        "--provider",
+        choices=get_args(LLMProvider),
+        default=None,
+        help="override NOTETAKER_LLM_PROVIDER",
+    )
+    lm.add_argument("-m", "--model", default=None, help="override NOTETAKER_LLM_MODEL")
+    lm.add_argument("--system", default=None, help="optional system message")
+    lm.add_argument(
+        "--json", action="store_true", help="ask for a JSON reply and validate it"
+    )
+    lm.add_argument("--max-tokens", type=int, default=None, help="cap the reply length")
     return parser
 
 
@@ -775,6 +801,55 @@ def run_baseline(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_llm(args: argparse.Namespace, transport=None) -> int:
+    """Handle `notetaker llm`: one prompt in, one reply out.
+
+    `transport` is only for tests (a fake network call); real runs leave it
+    as None and the client posts over HTTP.
+    """
+    from notetaker.llm import LLMError, make_client
+
+    try:
+        settings = get_settings()
+        client = make_client(
+            settings, provider=args.provider, model=args.model, transport=transport
+        )
+        reply = client.complete(
+            args.prompt,
+            system=args.system,
+            json_mode=args.json,
+            max_tokens=args.max_tokens,
+        )
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+    except LLMError as error:
+        print(f"Error: {error}")
+        return 1
+    if args.json:
+        try:
+            parsed = reply.json()
+        except ValueError:
+            print(reply.text)
+            print("Error: the reply was not valid JSON")
+            return 1
+        import json
+
+        print(json.dumps(parsed, indent=2, ensure_ascii=False))
+    else:
+        print(reply.text)
+    tokens = (
+        f"{reply.prompt_tokens} in / {reply.completion_tokens} out tokens"
+        if reply.total_tokens is not None
+        else "token counts n/a"
+    )
+    print(
+        f"\n[{reply.provider} · {reply.model} · {tokens} · "
+        f"{reply.latency_s:.2f}s · {reply.attempts} attempt(s)]"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -800,6 +875,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_terms(args)
     if args.command == "baseline":
         return run_baseline(args)
+    if args.command == "llm":
+        return run_llm(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

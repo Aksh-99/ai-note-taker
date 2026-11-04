@@ -105,15 +105,28 @@ class Settings(BaseSettings):
         default="ollama",
         description="ollama = local and free; groq / huggingface = free hosted tiers.",
     )
-    llm_model: str = Field(
-        default="llama3.1:8b",
-        description="Model name as the chosen provider spells it.",
+    llm_model: str | None = Field(
+        default=None,
+        description=(
+            "Model name as the chosen provider spells it. Empty means the "
+            "provider's free default (see DEFAULT_MODELS in llm.py)."
+        ),
     )
     llm_temperature: float = Field(
         default=0.2,
         ge=0.0,  # "greater or equal": temperature must be in [0, 2].
         le=2.0,
         description="Randomness of LLM output. Low values give steadier notes.",
+    )
+    llm_timeout_seconds: float = Field(
+        default=120.0,
+        gt=0.0,
+        description="Give up on one LLM request after this many seconds.",
+    )
+    llm_max_retries: int = Field(
+        default=3,
+        ge=0,
+        description="Retries for rate limits (429) and server errors (5xx).",
     )
     ollama_base_url: str = Field(
         default="http://localhost:11434",
@@ -141,9 +154,10 @@ class Settings(BaseSettings):
     # A "validator" is a hook pydantic runs on a value before storing it.
     # Environment variables are always strings, so a blank line such as
     # `NOTETAKER_LANGUAGE=` gives "" rather than None. This turns blank values
-    # into None, meaning "auto-detect" for language and "no key" for API keys
+    # into None, meaning "auto-detect" for language, "provider default" for the
+    # LLM model and "no key" for API keys
     # (so the blank keys in .env.example count as unset, not as an empty key).
-    @field_validator("language", "groq_api_key", "hf_token", mode="before")
+    @field_validator("language", "llm_model", "groq_api_key", "hf_token", mode="before")
     @classmethod
     def _blank_means_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():

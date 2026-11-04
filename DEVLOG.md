@@ -4,6 +4,26 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-03 · Step 3.1: LLM client for Ollama, Groq and Hugging Face
+
+**What I did**
+- Added `src/notetaker/llm.py`: one `LLMClient` interface with three free providers. `OllamaClient` (local, `POST /api/chat`), and `GroqClient` / `HuggingFaceClient`, which share an `OpenAICompatibleClient` because both speak the OpenAI chat-completions format
+- `chat(messages)` and the shortcut `complete(prompt, system=...)` return an `LLMResponse` with the text, model, provider, prompt and completion token counts, latency and number of attempts, so later steps can log cost and speed per lecture
+- `json_mode=True` asks the provider for JSON only (Ollama `format: json`, OpenAI-style `response_format`), and `LLMResponse.json()` parses it, stripping a markdown code fence if the model adds one anyway. Steps 3.4 to 3.6 rely on this
+- Retries with exponential backoff (1s, 2s, 4s, capped at 30s) for rate limits (429), timeouts and 5xx errors, using the server's `Retry-After` when sent. Errors that retrying cannot fix (400, 401, 404) fail at once with a hint, e.g. "run `ollama pull <model>`" or "is Ollama running?"
+- `make_client()` builds the client from settings. New settings `NOTETAKER_LLM_TIMEOUT_SECONDS` and `NOTETAKER_LLM_MAX_RETRIES`; `NOTETAKER_LLM_MODEL` may now be empty, meaning each provider's free default (all Llama 3.1 8B Instruct)
+- `FakeLLMClient` for tests: scripted replies, records every prompt sent
+- New CLI command `notetaker llm "prompt"` (`--provider`, `--model`, `--system`, `--json`, `--max-tokens`) to check the LLM setup
+- Standard library only (urllib), no new dependencies. 39 new tests in `tests/test_llm.py` using a fake transport, so CI makes no live LLM calls; one live Ollama test is marked slow and skips if Ollama is not running. `make check` passes (347 tests, lint clean)
+
+**How it works**
+Every free provider does the same job (messages in, text out) but with a different request format, so the code is split into a shared part and a provider part. The abstract base class `LLMClient` owns everything that is the same: the retry loop, timing, and turning failures into clear errors. Each provider subclass fills in only two small functions: how to build the HTTP request and how to read the reply. The summarizer will depend only on the interface, so swapping a local Llama for a hosted one is a config change. The actual HTTP call is a separate function (the "transport") passed into the client, which is dependency injection: in tests a fake transport returns canned replies in each provider's real format, so the tests check the exact request we send and the exact reply shape we parse without touching the network. Retries use exponential backoff: wait base * 2^(k-1) seconds before retry k, so short blips cost little while a rate-limited free tier is not hammered. Only errors that might go away are retried; a wrong key will still be wrong in 4 seconds.
+
+**Next up**
+Step 3.2: Prompted summarizer: transcript chunks to structured notes (headings, key points).
+
+---
+
 ## 2026-10-31 · Step 2.5: Baseline report (model size vs WER vs speed)
 
 **What I did**

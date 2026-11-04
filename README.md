@@ -105,5 +105,24 @@ notetaker baseline --rtf-budget 1.0   # allow slower models in the recommendatio
 
 This writes `reports/baseline.md` and `reports/baseline.json`: one row per model size with WER, CER, term recall, real-time factor and RAM, the Pareto frontier (models no other model beats on both accuracy and speed), the most accurate model within the speed budget, and what each step up in size buys in WER versus extra compute. Report names are matched across folders, so `whisper-small` in the WER report and `small` in the benchmark land in the same row. See `reports/baseline.md` for the full command loop.
 
+### LLM setup (for notes, flashcards and quizzes)
+
+Notes generation talks to an LLM through one client (`src/notetaker/llm.py`) that supports three free options. Pick one with `NOTETAKER_LLM_PROVIDER` in `.env`:
+
+| Provider | Cost | Setup | Default model |
+|---|---|---|---|
+| `ollama` (default) | free, runs locally | install [Ollama](https://ollama.com), then `ollama pull llama3.1:8b` | `llama3.1:8b` |
+| `groq` | free tier, rate-limited | free key from console.groq.com, set `GROQ_API_KEY` | `llama-3.1-8b-instant` |
+| `huggingface` | free monthly credits | free token from huggingface.co/settings/tokens, set `HF_TOKEN` | `meta-llama/Llama-3.1-8B-Instruct` |
+
+Check that it works:
+
+```bash
+notetaker llm "Explain eigenvalues in one sentence"
+notetaker llm "List three linear algebra terms" --json --provider groq
+```
+
+Rate limits (HTTP 429) and server errors are retried with exponential backoff (1s, 2s, 4s, ...), honoring the server's `Retry-After`. Tests never call a real LLM: they use a fake transport or `FakeLLMClient`.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.
