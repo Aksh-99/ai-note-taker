@@ -124,5 +124,14 @@ notetaker llm "List three linear algebra terms" --json --provider groq
 
 Rate limits (HTTP 429) and server errors are retried with exponential backoff (1s, 2s, 4s, ...), honoring the server's `Retry-After`. Tests never call a real LLM: they use a fake transport or `FakeLLMClient`.
 
+Turn a transcript into structured study notes:
+
+```bash
+notetaker notes outputs/lecture01/transcript.json              # notes.md + notes.json next to it
+notetaker notes outputs/lecture01/transcript.json -p groq --chunk-words 2000
+```
+
+The transcript is split into chunks of about 1,200 words (a few minutes of speech, cut only at pauses). Each chunk goes to the LLM, which returns JSON sections (heading, one-line summary, key points, start time). Replies are validated, and broken JSON is sent back to the model once with the error so it can fix it. Every section heading carries a timestamp like `[00:12:41]`; timestamps the model invents outside its chunk are replaced by the chunk's start, so they always point at a real moment in the recording.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

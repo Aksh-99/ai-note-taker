@@ -28,7 +28,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 
 ## Phase 3: Notes generation
 - [x] 3.1 LLM client abstraction supporting Ollama (local) and Groq / HF free tier (hosted)
-- [ ] 3.2 Prompted summarizer: transcript chunks to structured notes (headings, key points)
+- [x] 3.2 Prompted summarizer: transcript chunks to structured notes (headings, key points)
 - [ ] 3.3 Map-reduce summarization for long lectures
 - [ ] 3.4 Key concepts + definitions extraction as JSON with schema validation
 - [ ] 3.5 Flashcard generation (Q/A pairs), exportable to Anki CSV

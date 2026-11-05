@@ -25,6 +25,9 @@ Commands so far:
     notetaker llm "Explain eigenvalues in one sentence"
                           send one prompt to the configured LLM (Ollama by
                           default) to check the setup works
+    notetaker notes outputs/lecture01/transcript.json
+                          write structured study notes (notes.md + notes.json)
+                          next to the transcript, using the configured LLM
 """
 
 import argparse
@@ -360,6 +363,44 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="ask for a JSON reply and validate it"
     )
     lm.add_argument("--max-tokens", type=int, default=None, help="cap the reply length")
+    no = subcommands.add_parser(
+        "notes",
+        help="turn a transcript.json into structured study notes",
+        description=(
+            "Split a transcript into chunks of a few minutes, ask the "
+            "configured LLM for notes on each (headings, summary, key points, "
+            "start time) and write notes.md + notes.json."
+        ),
+    )
+    no.add_argument("transcript", type=Path, help="a transcript.json file")
+    no.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="where to write notes (default: next to the transcript)",
+    )
+    no.add_argument("--title", default=None, help="notes title (default: folder name)")
+    no.add_argument(
+        "-p",
+        "--provider",
+        choices=get_args(LLMProvider),
+        default=None,
+        help="override NOTETAKER_LLM_PROVIDER",
+    )
+    no.add_argument("-m", "--model", default=None, help="override NOTETAKER_LLM_MODEL")
+    no.add_argument(
+        "--chunk-words",
+        type=int,
+        default=1200,
+        help="transcript words per LLM call (default: 1200)",
+    )
+    no.add_argument(
+        "--max-repairs",
+        type=int,
+        default=1,
+        help="times to ask the model to fix invalid JSON (default: 1)",
+    )
     return parser
 
 
@@ -850,6 +891,70 @@ def run_llm(args: argparse.Namespace, transport=None) -> int:
     return 0
 
 
+def run_notes(args: argparse.Namespace, client=None) -> int:
+    """Handle `notetaker notes`: transcript.json in, notes.md + notes.json out.
+
+    `client` is only for tests (a FakeLLMClient); real runs build the client
+    from the settings.
+    """
+    from notetaker.llm import LLMError, make_client
+    from notetaker.notes import NotesError, generate_notes, write_notes
+    from notetaker.transcribe import Transcript
+
+    if args.chunk_words <= 0 or args.max_repairs < 0:
+        print("Error: --chunk-words must be > 0 and --max-repairs >= 0")
+        return 1
+    try:
+        transcript = Transcript.load_json(args.transcript)
+    except FileNotFoundError:
+        print(f"Error: no such file: {args.transcript}")
+        return 1
+    except (ValueError, KeyError, TypeError) as error:
+        print(f"Error: {args.transcript} is not a transcript.json ({error})")
+        return 1
+
+    out_dir = args.output_dir or args.transcript.parent
+    title = args.title or f"Notes: {args.transcript.parent.name or 'lecture'}"
+
+    def progress(index: int, total: int, chunk) -> None:
+        from notetaker.export import format_timestamp
+
+        print(
+            f"  chunk {index + 1}/{total} "
+            f"[{format_timestamp(chunk.start)}-{format_timestamp(chunk.end)}] "
+            f"{chunk.word_count} words",
+            flush=True,
+        )
+
+    try:
+        if client is None:
+            client = make_client(
+                get_settings(), provider=args.provider, model=args.model
+            )
+        print(f"Writing notes with {client.provider} · {client.model}")
+        notes = generate_notes(
+            transcript,
+            client,
+            title=title,
+            max_words=args.chunk_words,
+            max_repairs=args.max_repairs,
+            on_chunk=progress,
+        )
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+    except (LLMError, NotesError) as error:
+        print(f"Error: {error}")
+        return 1
+    json_path, md_path = write_notes(notes, out_dir)
+    print(
+        f"{len(notes.sections)} section(s) from {notes.chunks} chunk(s), "
+        f"{notes.llm_calls} LLM call(s), {notes.latency_s:.1f}s"
+    )
+    print(f"Wrote {md_path}\nWrote {json_path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -877,6 +982,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_baseline(args)
     if args.command == "llm":
         return run_llm(args)
+    if args.command == "notes":
+        return run_notes(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

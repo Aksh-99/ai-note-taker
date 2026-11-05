@@ -4,6 +4,26 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-04 · Step 3.2: Prompted summarizer (transcript chunks to structured notes)
+
+**What I did**
+- Added `src/notetaker/notes.py`: chunks a transcript, asks the LLM for JSON notes per chunk, validates them and writes `notes.md` + `notes.json`
+- `chunk_transcript()` packs the pause-based paragraphs from Step 1.3 into chunks of at most 1,200 words (about 7 to 9 minutes of speech), never cutting inside a paragraph
+- Each chunk is sent as timestamped lines (`[00:12:41] ...`) with a prompt asking for 1 to 4 sections, each with a heading, a short summary, 2 to 6 key points and the start timestamp. The system prompt tells the model to use only what the lecturer said
+- Replies are validated with pydantic schemas (`SectionSchema`, `ChunkNotesSchema`): non-empty heading, at least one key point, empty bullets dropped, a bare list or a markdown code fence accepted. If validation fails, the bad reply and the error go back to the model for one repair attempt (`--max-repairs`)
+- Section timestamps are parsed and checked against the chunk's time range; a missing, malformed or out-of-range time falls back to the chunk start
+- `Notes` records model, provider, number of chunks and LLM calls, token totals and latency, so cost per lecture can be compared later
+- New CLI command `notetaker notes transcript.json` (`-o`, `--title`, `-p`, `-m`, `--chunk-words`, `--max-repairs`) with per-chunk progress lines
+- Added `pydantic` as an explicit dependency (it was already installed via pydantic-settings). 41 new tests in `tests/test_notes.py`, all with `FakeLLMClient`, so CI makes no live LLM calls. `make check` passes (388 tests, lint clean)
+
+**How it works**
+A full lecture is around 10,000 words, too long for a small free model to summarize well in one go, so the transcript is cut into chunks that each fit comfortably in the context window. Chunking is greedy packing: add paragraphs until the next one would exceed the word budget, then start a new chunk. Cuts only happen at speaker pauses, so a sentence is never split. For each chunk the model must answer in JSON, not free text, because JSON can be checked: a pydantic schema declares the fields and types we expect and raises a precise error otherwise. Small models sometimes return broken JSON, so instead of failing we run a repair loop: show the model its own reply and the exact error, and ask for a corrected version. Timestamps are treated as untrusted model output: we parse them and accept them only if they fall inside the chunk the model actually saw, otherwise we use the chunk start. That guarantees every heading links to a real moment in the recording. This step is the "map" half of map-reduce: each chunk is summarized independently; Step 3.3 adds the "reduce" that merges them.
+
+**Next up**
+Step 3.3: Map-reduce summarization for long lectures.
+
+---
+
 ## 2026-11-03 · Step 3.1: LLM client for Ollama, Groq and Hugging Face
 
 **What I did**
