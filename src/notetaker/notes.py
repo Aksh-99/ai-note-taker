@@ -15,9 +15,9 @@ Why chunks?
     a limited context window or get noticeably worse at following
     instructions when the input is that long. So we cut the transcript into
     pieces of about 1,200 words (a few minutes of speech) and summarize each
-    one on its own. Step 3.3 adds the "reduce" half: merging the per-chunk
-    notes into one coherent document. Here the sections are simply listed in
-    time order, which is already useful.
+    one on its own (the "map" step). The "reduce" step in mapreduce.py then
+    merges the per-chunk sections into the lecture's main topics and writes
+    an overview; pass `reduce=True` to `generate_notes` to run it.
 
 Why JSON instead of asking for Markdown directly?
     Free-form Markdown is hard to check. With JSON we can validate the shape
@@ -264,7 +264,10 @@ class NoteSection:
     start: float  # seconds, always inside the chunk it came from
     summary: str
     key_points: list[str]
-    chunk: int  # which chunk produced it, for debugging and Step 3.3
+    chunk: int  # which chunk produced it (first chunk, for a merged topic)
+    # After the reduce step: indices into `Notes.detail_sections` of the
+    # per-chunk sections this topic was merged from. Empty for map output.
+    sources: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -280,6 +283,17 @@ class Notes:
     completion_tokens: int = 0
     llm_calls: int = 0
     latency_s: float = 0.0
+    # Filled by the reduce step (mapreduce.py); defaults mean "map only", so
+    # notes.json files written before Step 3.3 still load.
+    overview: str = ""
+    takeaways: list[str] = field(default_factory=list)
+    # The per-chunk sections before merging, kept for debugging and for the
+    # faithfulness eval in Step 3.7. Empty when no reduce step ran.
+    detail_sections: list[NoteSection] = field(default_factory=list)
+    reduce_calls: int = 0
+    reduce_levels: int = 0
+    # Set when the reduce step failed and we fell back to the map notes.
+    reduce_error: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -287,7 +301,8 @@ class Notes:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Notes:
         sections = [NoteSection(**s) for s in data["sections"]]
-        return cls(**{**data, "sections": sections})
+        details = [NoteSection(**s) for s in data.get("detail_sections", [])]
+        return cls(**{**data, "sections": sections, "detail_sections": details})
 
     def to_markdown(self) -> str:
         lines = [f"# {self.title}", ""]
@@ -296,6 +311,8 @@ class Notes:
             f"transcript chunk(s). Timestamps link back to the recording._"
         )
         lines.append("")
+        if self.overview:
+            lines += [f"**Overview.** {self.overview}", ""]
         if not self.sections:
             lines += ["_No notes: the transcript was empty._", ""]
         for section in self.sections:
@@ -304,6 +321,10 @@ class Notes:
             if section.summary:
                 lines += [section.summary, ""]
             lines += [f"- {point}" for point in section.key_points]
+            lines.append("")
+        if self.takeaways:
+            lines += ["## Key takeaways", ""]
+            lines += [f"- {point}" for point in self.takeaways]
             lines.append("")
         return "\n".join(lines)
 
@@ -379,11 +400,19 @@ def generate_notes(
     max_repairs: int = 1,
     max_tokens: int | None = DEFAULT_MAX_TOKENS,
     on_chunk: Callable[[int, int, TranscriptChunk], None] | None = None,
+    reduce: bool = False,
+    reduce_words: int | None = None,
 ) -> Notes:
     """Full pipeline: chunk the transcript and summarize every chunk.
 
     `on_chunk(i, total, chunk)` is an optional progress callback; the CLI
     uses it to print a line before each (slow) LLM call.
+
+    With `reduce=True` the per-chunk sections are then merged into topics
+    with an overview (see mapreduce.py). `reduce_words` is the word budget
+    per reduce call (None: the module default). If the reduce step fails,
+    the map notes are returned unchanged with `reduce_error` set, because
+    good per-chunk notes are still worth keeping.
     """
     chunks = chunk_transcript(transcript, max_words=max_words)
     sections: list[NoteSection] = []
@@ -400,7 +429,7 @@ def generate_notes(
     # Sort by time: within a chunk the model may list topics out of order.
     # `sorted` is stable, so sections with equal times keep their order.
     sections = sorted(sections, key=lambda s: (s.chunk, s.start))
-    return Notes(
+    notes = Notes(
         title=title,
         sections=sections,
         model=getattr(client, "model", "unknown"),
@@ -412,6 +441,19 @@ def generate_notes(
         llm_calls=len(responses),
         latency_s=sum(r.latency_s for r in responses),
     )
+    if reduce:
+        # Imported here, not at the top: mapreduce.py imports this module,
+        # and a top-level import in both directions would be circular.
+        from notetaker.mapreduce import DEFAULT_REDUCE_WORDS, reduce_notes
+
+        notes = reduce_notes(
+            notes,
+            client,
+            max_words=reduce_words or DEFAULT_REDUCE_WORDS,
+            max_repairs=max_repairs,
+            max_tokens=max_tokens,
+        )
+    return notes
 
 
 def write_notes(notes: Notes, out_dir: str | Path) -> tuple[Path, Path]:

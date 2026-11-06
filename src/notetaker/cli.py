@@ -369,7 +369,8 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "Split a transcript into chunks of a few minutes, ask the "
             "configured LLM for notes on each (headings, summary, key points, "
-            "start time) and write notes.md + notes.json."
+            "start time), merge those into the lecture's main topics with an "
+            "overview, and write notes.md + notes.json."
         ),
     )
     no.add_argument("transcript", type=Path, help="a transcript.json file")
@@ -400,6 +401,17 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         help="times to ask the model to fix invalid JSON (default: 1)",
+    )
+    no.add_argument(
+        "--no-reduce",
+        action="store_true",
+        help="skip merging chunk notes into topics (one section list per chunk)",
+    )
+    no.add_argument(
+        "--reduce-words",
+        type=int,
+        default=2500,
+        help="word budget per merge call; longer lists merge in levels (default: 2500)",
     )
     return parser
 
@@ -901,8 +913,10 @@ def run_notes(args: argparse.Namespace, client=None) -> int:
     from notetaker.notes import NotesError, generate_notes, write_notes
     from notetaker.transcribe import Transcript
 
-    if args.chunk_words <= 0 or args.max_repairs < 0:
-        print("Error: --chunk-words must be > 0 and --max-repairs >= 0")
+    if args.chunk_words <= 0 or args.reduce_words <= 0 or args.max_repairs < 0:
+        print(
+            "Error: --chunk-words and --reduce-words must be > 0 and --max-repairs >= 0"
+        )
         return 1
     try:
         transcript = Transcript.load_json(args.transcript)
@@ -939,6 +953,8 @@ def run_notes(args: argparse.Namespace, client=None) -> int:
             max_words=args.chunk_words,
             max_repairs=args.max_repairs,
             on_chunk=progress,
+            reduce=not args.no_reduce,
+            reduce_words=args.reduce_words,
         )
     except ValidationError as error:
         print(f"Invalid configuration:\n{error}")
@@ -947,6 +963,14 @@ def run_notes(args: argparse.Namespace, client=None) -> int:
         print(f"Error: {error}")
         return 1
     json_path, md_path = write_notes(notes, out_dir)
+    if notes.reduce_error:
+        # Not fatal: the per-chunk notes were still written.
+        print(f"Warning: could not merge into topics ({notes.reduce_error})")
+    elif notes.detail_sections:
+        print(
+            f"Merged {len(notes.detail_sections)} chunk section(s) into "
+            f"{len(notes.sections)} topic(s) with {notes.reduce_calls} call(s)"
+        )
     print(
         f"{len(notes.sections)} section(s) from {notes.chunks} chunk(s), "
         f"{notes.llm_calls} LLM call(s), {notes.latency_s:.1f}s"

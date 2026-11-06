@@ -4,6 +4,26 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-05 · Step 3.3: Map-reduce summarization for long lectures
+
+**What I did**
+- Added `src/notetaker/mapreduce.py`, the "reduce" half of map-reduce: it merges the per-chunk sections from Step 3.2 into the lecture's main topics and writes a 2 to 4 sentence overview plus 3 to 6 key takeaways
+- The model sees the sections as a numbered list (`[3] (00:16:02) Heading: summary; point; point`) and answers with JSON that groups section ids into topics, each with a new heading and summary. Ids are checked in code: an unknown id or an id used twice triggers the repair loop; a forgotten id is attached to the topic of the section just before it, so every section lands in exactly one topic
+- Facts are copied, not generated: a topic's timestamp is the earliest start of its sections and its key points are their key points, with near-duplicates removed by word-level similarity (`dedupe_points`, threshold 0.9)
+- Hierarchical reduce: if the list is longer than the word budget (default 2,500 words), it is packed into consecutive batches, each batch is merged, and the shorter list is merged again (at most 3 levels, and it stops early if a level merges nothing). Only the final call asks for the overview
+- `Notes` gained `overview`, `takeaways`, `detail_sections` (the per-chunk sections before merging, kept for the Step 3.7 faithfulness eval), `reduce_calls`, `reduce_levels` and `reduce_error`; `NoteSection` gained `sources`. Old `notes.json` files still load. `notes.md` now shows the overview at the top and the takeaways at the end
+- If the reduce step fails (bad JSON after repairs, or an API error) the per-chunk notes are kept and the CLI prints a warning instead of failing
+- `notetaker notes` now merges by default; new flags `--no-reduce` and `--reduce-words`
+- 39 new tests in `tests/test_mapreduce.py` with fake clients, including one that answers any reduce prompt by pairing ids so the multi-level path is tested on 24 sections. `make check` passes (427 tests, lint clean)
+
+**How it works**
+Summarizing a long lecture in one call does not work with small free models, so it is split like a classic MapReduce job: "map" summarizes each chunk independently, "reduce" combines those partial results. The key design choice is what the reduce call is allowed to write. If the model rewrote all the notes, it could drop details or invent new ones, and every merge would be a new chance to hallucinate. Instead the model does only the part that needs language understanding (deciding which sections belong together and naming the topic) while code does the bookkeeping: timestamps, key points and coverage. That makes the output checkable: every final topic lists the `sources` it came from, and a test asserts that every map section appears in exactly one topic. Duplicate key points across neighbouring chunks are removed with a similarity ratio, 2 x matching words / total words, on lowercase words. Comparing words instead of characters matters, because "the determinant is zero" and "the determinant is nonzero" are nearly identical as strings but say opposite things. When the list is too long for one prompt, the merge runs as a tree: reduce batches, then reduce the results, so n sections need about log(n) levels instead of one oversized prompt.
+
+**Next up**
+Step 3.4: Key concepts + definitions extraction as JSON with schema validation.
+
+---
+
 ## 2026-11-04 · Step 3.2: Prompted summarizer (transcript chunks to structured notes)
 
 **What I did**

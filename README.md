@@ -133,5 +133,7 @@ notetaker notes outputs/lecture01/transcript.json -p groq --chunk-words 2000
 
 The transcript is split into chunks of about 1,200 words (a few minutes of speech, cut only at pauses). Each chunk goes to the LLM, which returns JSON sections (heading, one-line summary, key points, start time). Replies are validated, and broken JSON is sent back to the model once with the error so it can fix it. Every section heading carries a timestamp like `[00:12:41]`; timestamps the model invents outside its chunk are replaced by the chunk's start, so they always point at a real moment in the recording.
 
+Then a "reduce" step merges the per-chunk sections into the lecture's main topics, adds a short overview and key takeaways (map-reduce summarization, `src/notetaker/mapreduce.py`). The model only groups numbered sections and writes the new headings and summaries; each topic's timestamp and key points are copied from its sections in code, with near-duplicate points removed, so nothing is invented and nothing is lost. If the section list is too long for one prompt (`--reduce-words`, default 2,500), it is merged in batches and then merged again. `--no-reduce` keeps the plain per-chunk notes, and if merging fails the per-chunk notes are still written.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.
