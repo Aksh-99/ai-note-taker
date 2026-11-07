@@ -4,6 +4,26 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-06 · Step 3.4: Key concepts + definitions extraction as JSON with schema validation
+
+**What I did**
+- Added `src/notetaker/concepts.py`: one LLM call per transcript chunk asks for the technical terms explained in it, each with a definition and optional aliases, as JSON
+- Replies are validated with a pydantic schema (`ChunkConceptsSchema`): non-empty term and definition, a term of at most 8 words, aliases cleaned to a list. An empty list is allowed (a chunk of logistics has no concepts). A bare list or a flat `{"term": "definition"}` object is accepted too, and invalid replies go through the same one-shot repair loop as the notes
+- Grounding check: a term (or one of its aliases) must occur in the chunk the model read, otherwise it is dropped and listed in `dropped_ungrounded`
+- Merging: the same concept from several chunks becomes one entry, matched on any shared name after normalization (lowercase, punctuation removed, plurals folded), so "SVD" merges with "singular value decomposition (aliases: SVD)". The first wording wins; differently worded later definitions are kept in `other_definitions`, near copies are removed with `dedupe_points` from Step 3.3
+- Timestamps come from the transcript, not the model: `mentions` lists the start of every paragraph that uses the term, and `first_mention` is the earliest
+- The output file is also a pydantic model (`ConceptList`): `write_concepts` writes `concepts.json` + `concepts.md` (a glossary with timestamps), `load_concepts` re-validates the file on read, and its JSON Schema is committed in `schemas/concepts.schema.json` with a test that fails if the code and the schema file drift apart
+- New CLI command `notetaker concepts transcript.json` (`-o`, `--title`, `-p`, `-m`, `--chunk-words`, `--max-repairs`) and `notetaker concepts --schema`
+- 29 new tests in `tests/test_concepts.py`, all with `FakeLLMClient` (no live LLM calls). `make check` passes (456 tests, lint clean)
+
+**How it works**
+The model is used only for the part that needs language understanding: deciding which phrases are concepts and paraphrasing how the lecturer defines them. Anything that can be checked is checked in code. Schema validation guards the shape of the data twice: on the way in (is the model reply usable?) and on the way out (is this concepts.json file trustworthy for the flashcard and quiz steps?). Pydantic lets me declare the rules once and get both a validator and a standard JSON Schema from the same class. To catch hallucinated terms, each term is normalized into a tuple of words and searched for as a consecutive phrase in the chunk text, with a sliding window. The plural folding is deliberately crude (drop a final "s", "ies" to "y") because a full stemmer would also merge different words like "general" and "generate". The same normalized word tuples are used as keys to merge concepts across chunks and to find every paragraph that mentions a term, which gives an index from concept to timestamps for free. Whether the definitions are faithful is a harder question and is left to the LLM-as-judge eval in Step 3.7.
+
+**Next up**
+Step 3.5: Flashcard generation (Q/A pairs), exportable to Anki CSV.
+
+---
+
 ## 2026-11-05 · Step 3.3: Map-reduce summarization for long lectures
 
 **What I did**

@@ -135,5 +135,14 @@ The transcript is split into chunks of about 1,200 words (a few minutes of speec
 
 Then a "reduce" step merges the per-chunk sections into the lecture's main topics, adds a short overview and key takeaways (map-reduce summarization, `src/notetaker/mapreduce.py`). The model only groups numbered sections and writes the new headings and summaries; each topic's timestamp and key points are copied from its sections in code, with near-duplicate points removed, so nothing is invented and nothing is lost. If the section list is too long for one prompt (`--reduce-words`, default 2,500), it is merged in batches and then merged again. `--no-reduce` keeps the plain per-chunk notes, and if merging fails the per-chunk notes are still written.
 
+Extract a glossary of key concepts and their definitions:
+
+```bash
+notetaker concepts outputs/lecture01/transcript.json           # concepts.md + concepts.json next to it
+notetaker concepts --schema                                     # print the JSON Schema of concepts.json
+```
+
+Each chunk goes to the LLM, which lists the technical terms explained in it with a definition and any aliases (e.g. "SVD"). Replies are validated with pydantic (broken JSON gets one repair attempt). A term that does not actually occur in the chunk is dropped and reported, the same concept found in several chunks is merged into one entry (matched on its name or aliases, ignoring case, punctuation and plurals), and timestamps are found by searching the transcript, not asked from the model: each entry lists the time of every paragraph that mentions it. The output file has a published schema in [`schemas/concepts.schema.json`](schemas/concepts.schema.json), and `load_concepts` re-validates it on read, so later steps (flashcards, quizzes) can trust its shape.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

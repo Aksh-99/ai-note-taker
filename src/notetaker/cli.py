@@ -27,6 +27,8 @@ Commands so far:
                           default) to check the setup works
     notetaker notes outputs/lecture01/transcript.json
                           write structured study notes (notes.md + notes.json)
+    notetaker concepts outputs/lecture01/transcript.json
+                          glossary of key terms (concepts.md + concepts.json)
                           next to the transcript, using the configured LLM
 """
 
@@ -412,6 +414,55 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=2500,
         help="word budget per merge call; longer lists merge in levels (default: 2500)",
+    )
+    co = subcommands.add_parser(
+        "concepts",
+        help="extract key concepts + definitions from a transcript.json",
+        description=(
+            "Ask the configured LLM for the technical terms defined in each "
+            "chunk, keep only terms that really occur in the transcript, merge "
+            "duplicates across chunks, record every timestamp where each term "
+            "is mentioned, and write concepts.md + concepts.json. Use --schema "
+            "to print the JSON Schema of concepts.json instead."
+        ),
+    )
+    # nargs="?" makes the positional optional, so `notetaker concepts --schema`
+    # works without a transcript. run_concepts checks it is given otherwise.
+    co.add_argument("transcript", type=Path, nargs="?", help="a transcript.json file")
+    co.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="where to write concepts (default: next to the transcript)",
+    )
+    co.add_argument(
+        "--title", default=None, help="glossary title (default: folder name)"
+    )
+    co.add_argument(
+        "-p",
+        "--provider",
+        choices=get_args(LLMProvider),
+        default=None,
+        help="override NOTETAKER_LLM_PROVIDER",
+    )
+    co.add_argument("-m", "--model", default=None, help="override NOTETAKER_LLM_MODEL")
+    co.add_argument(
+        "--chunk-words",
+        type=int,
+        default=1200,
+        help="transcript words per LLM call (default: 1200)",
+    )
+    co.add_argument(
+        "--max-repairs",
+        type=int,
+        default=1,
+        help="times to ask the model to fix invalid JSON (default: 1)",
+    )
+    co.add_argument(
+        "--schema",
+        action="store_true",
+        help="print the JSON Schema of concepts.json and exit",
     )
     return parser
 
@@ -979,6 +1030,87 @@ def run_notes(args: argparse.Namespace, client=None) -> int:
     return 0
 
 
+def run_concepts(args: argparse.Namespace, client=None) -> int:
+    """Handle `notetaker concepts`: transcript.json in, concepts.md + .json out.
+
+    `client` is only for tests (a FakeLLMClient).
+    """
+    import json
+
+    from notetaker.concepts import (
+        ConceptsError,
+        concepts_json_schema,
+        extract_concepts,
+        write_concepts,
+    )
+    from notetaker.llm import LLMError, make_client
+    from notetaker.transcribe import Transcript
+
+    if args.schema:
+        print(json.dumps(concepts_json_schema(), indent=2))
+        return 0
+    if args.transcript is None:
+        print("Error: give a transcript.json (or --schema)")
+        return 1
+    if args.chunk_words <= 0 or args.max_repairs < 0:
+        print("Error: --chunk-words must be > 0 and --max-repairs >= 0")
+        return 1
+    try:
+        transcript = Transcript.load_json(args.transcript)
+    except FileNotFoundError:
+        print(f"Error: no such file: {args.transcript}")
+        return 1
+    except (ValueError, KeyError, TypeError) as error:
+        print(f"Error: {args.transcript} is not a transcript.json ({error})")
+        return 1
+
+    out_dir = args.output_dir or args.transcript.parent
+    title = args.title or f"Key concepts: {args.transcript.parent.name or 'lecture'}"
+
+    def progress(index: int, total: int, chunk) -> None:
+        from notetaker.export import format_timestamp
+
+        print(
+            f"  chunk {index + 1}/{total} "
+            f"[{format_timestamp(chunk.start)}-{format_timestamp(chunk.end)}] "
+            f"{chunk.word_count} words",
+            flush=True,
+        )
+
+    try:
+        if client is None:
+            client = make_client(
+                get_settings(), provider=args.provider, model=args.model
+            )
+        print(f"Extracting concepts with {client.provider} · {client.model}")
+        concepts = extract_concepts(
+            transcript,
+            client,
+            title=title,
+            max_words=args.chunk_words,
+            max_repairs=args.max_repairs,
+            on_chunk=progress,
+        )
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+    except (LLMError, ConceptsError) as error:
+        print(f"Error: {error}")
+        return 1
+    json_path, md_path = write_concepts(concepts, out_dir)
+    if concepts.dropped_ungrounded:
+        print(
+            f"Dropped {len(concepts.dropped_ungrounded)} term(s) not found in the "
+            f"transcript: {', '.join(concepts.dropped_ungrounded)}"
+        )
+    print(
+        f"{len(concepts.concepts)} concept(s) from {concepts.chunks} chunk(s), "
+        f"{concepts.llm_calls} LLM call(s), {concepts.latency_s:.1f}s"
+    )
+    print(f"Wrote {md_path}\nWrote {json_path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -1008,6 +1140,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_llm(args)
     if args.command == "notes":
         return run_notes(args)
+    if args.command == "concepts":
+        return run_concepts(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

@@ -1,0 +1,133 @@
+{
+  "$defs": {
+    "Concept": {
+      "description": "One glossary entry in concepts.json.",
+      "properties": {
+        "term": {
+          "description": "Concept name as spoken",
+          "minLength": 1,
+          "title": "Term",
+          "type": "string"
+        },
+        "definition": {
+          "description": "Definition from the lecture",
+          "minLength": 1,
+          "title": "Definition",
+          "type": "string"
+        },
+        "aliases": {
+          "description": "Other names used",
+          "items": {
+            "type": "string"
+          },
+          "title": "Aliases",
+          "type": "array"
+        },
+        "first_mention": {
+          "description": "Seconds into the lecture",
+          "minimum": 0,
+          "title": "First Mention",
+          "type": "number"
+        },
+        "mentions": {
+          "description": "Start time (s) of every paragraph that mentions the term",
+          "items": {
+            "type": "number"
+          },
+          "title": "Mentions",
+          "type": "array"
+        },
+        "chunks": {
+          "description": "Chunks the concept was extracted from",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Chunks",
+          "type": "array"
+        },
+        "other_definitions": {
+          "description": "Differently worded definitions from later chunks",
+          "items": {
+            "type": "string"
+          },
+          "title": "Other Definitions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "term",
+        "definition",
+        "first_mention"
+      ],
+      "title": "Concept",
+      "type": "object"
+    }
+  },
+  "description": "The whole concepts.json file: entries plus how they were made.",
+  "properties": {
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "concepts": {
+      "items": {
+        "$ref": "#/$defs/Concept"
+      },
+      "title": "Concepts",
+      "type": "array"
+    },
+    "model": {
+      "title": "Model",
+      "type": "string"
+    },
+    "provider": {
+      "title": "Provider",
+      "type": "string"
+    },
+    "chunks": {
+      "minimum": 0,
+      "title": "Chunks",
+      "type": "integer"
+    },
+    "llm_calls": {
+      "minimum": 0,
+      "title": "Llm Calls",
+      "type": "integer"
+    },
+    "prompt_tokens": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Prompt Tokens",
+      "type": "integer"
+    },
+    "completion_tokens": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Completion Tokens",
+      "type": "integer"
+    },
+    "latency_s": {
+      "default": 0.0,
+      "minimum": 0,
+      "title": "Latency S",
+      "type": "number"
+    },
+    "dropped_ungrounded": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Dropped Ungrounded",
+      "type": "array"
+    }
+  },
+  "required": [
+    "title",
+    "concepts",
+    "model",
+    "provider",
+    "chunks",
+    "llm_calls"
+  ],
+  "title": "ConceptList",
+  "type": "object"
+}
