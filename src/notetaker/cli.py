@@ -30,6 +30,9 @@ Commands so far:
     notetaker concepts outputs/lecture01/transcript.json
                           glossary of key terms (concepts.md + concepts.json)
                           next to the transcript, using the configured LLM
+    notetaker flashcards outputs/lecture01/transcript.json
+                          Q/A flashcards (flashcards.md + .json + an Anki CSV);
+                          add --concepts concepts.json for glossary cards
 """
 
 import argparse
@@ -463,6 +466,75 @@ def build_parser() -> argparse.ArgumentParser:
         "--schema",
         action="store_true",
         help="print the JSON Schema of concepts.json and exit",
+    )
+    fc = subcommands.add_parser(
+        "flashcards",
+        help="generate Q/A flashcards from a transcript.json, export to Anki CSV",
+        description=(
+            "Ask the configured LLM for flashcards on each chunk, keep only "
+            "cards whose answers use the lecturer's words, link each card to "
+            "a timestamp, remove duplicate questions, and write flashcards.md, "
+            "flashcards.json and flashcards.csv (import the CSV in Anki with "
+            "File > Import). --concepts adds one card per glossary entry from "
+            "`notetaker concepts`; with --concepts-only no LLM is called."
+        ),
+    )
+    fc.add_argument("transcript", type=Path, nargs="?", help="a transcript.json file")
+    fc.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="where to write the cards (default: next to the input file)",
+    )
+    fc.add_argument("--title", default=None, help="deck title (default: folder name)")
+    fc.add_argument("--deck", default=None, help="Anki deck name (default: the title)")
+    fc.add_argument(
+        "--concepts",
+        type=Path,
+        default=None,
+        help="a concepts.json (Step 3.4) to add 'What is X?' cards from",
+    )
+    fc.add_argument(
+        "--concepts-only",
+        action="store_true",
+        help="only make cards from --concepts; no transcript, no LLM calls",
+    )
+    fc.add_argument(
+        "--max-cards",
+        type=int,
+        default=6,
+        help="most cards per chunk (default: 6)",
+    )
+    fc.add_argument(
+        "--plain-csv",
+        action="store_true",
+        help="omit the #header lines (for Anki versions older than 2.1.55)",
+    )
+    fc.add_argument(
+        "-p",
+        "--provider",
+        choices=get_args(LLMProvider),
+        default=None,
+        help="override NOTETAKER_LLM_PROVIDER",
+    )
+    fc.add_argument("-m", "--model", default=None, help="override NOTETAKER_LLM_MODEL")
+    fc.add_argument(
+        "--chunk-words",
+        type=int,
+        default=1200,
+        help="transcript words per LLM call (default: 1200)",
+    )
+    fc.add_argument(
+        "--max-repairs",
+        type=int,
+        default=1,
+        help="times to ask the model to fix invalid JSON (default: 1)",
+    )
+    fc.add_argument(
+        "--schema",
+        action="store_true",
+        help="print the JSON Schema of flashcards.json and exit",
     )
     return parser
 
@@ -1111,6 +1183,113 @@ def run_concepts(args: argparse.Namespace, client=None) -> int:
     return 0
 
 
+def run_flashcards(args: argparse.Namespace, client=None) -> int:
+    """Handle `notetaker flashcards`: transcript (and/or concepts) in, cards out.
+
+    `client` is only for tests (a FakeLLMClient).
+    """
+    import json
+
+    from notetaker.concepts import load_concepts
+    from notetaker.flashcards import (
+        FlashcardsError,
+        flashcards_json_schema,
+        generate_flashcards,
+        write_flashcards,
+    )
+    from notetaker.llm import LLMError, make_client
+    from notetaker.transcribe import Transcript
+
+    if args.schema:
+        print(json.dumps(flashcards_json_schema(), indent=2))
+        return 0
+    if args.concepts_only and args.concepts is None:
+        print("Error: --concepts-only needs --concepts concepts.json")
+        return 1
+    if args.transcript is None and not args.concepts_only:
+        print("Error: give a transcript.json (or --concepts-only, or --schema)")
+        return 1
+    if args.chunk_words <= 0 or args.max_repairs < 0 or args.max_cards <= 0:
+        print("Error: --chunk-words and --max-cards must be > 0, --max-repairs >= 0")
+        return 1
+
+    concepts = None
+    if args.concepts is not None:
+        try:
+            concepts = load_concepts(args.concepts)
+        except FileNotFoundError:
+            print(f"Error: no such file: {args.concepts}")
+            return 1
+        except ValueError as error:
+            print(f"Error: {error}")
+            return 1
+
+    transcript = None
+    if not args.concepts_only:
+        try:
+            transcript = Transcript.load_json(args.transcript)
+        except FileNotFoundError:
+            print(f"Error: no such file: {args.transcript}")
+            return 1
+        except (ValueError, KeyError, TypeError) as error:
+            print(f"Error: {args.transcript} is not a transcript.json ({error})")
+            return 1
+
+    source = args.concepts if args.concepts_only else args.transcript
+    out_dir = args.output_dir or source.parent
+    title = args.title or f"Flashcards: {source.parent.name or 'lecture'}"
+
+    def progress(index: int, total: int, chunk) -> None:
+        from notetaker.export import format_timestamp
+
+        print(
+            f"  chunk {index + 1}/{total} "
+            f"[{format_timestamp(chunk.start)}-{format_timestamp(chunk.end)}] "
+            f"{chunk.word_count} words",
+            flush=True,
+        )
+
+    try:
+        if args.concepts_only:
+            client = None
+        elif client is None:
+            client = make_client(
+                get_settings(), provider=args.provider, model=args.model
+            )
+        if client is not None:
+            print(f"Writing flashcards with {client.provider} · {client.model}")
+        deck = generate_flashcards(
+            transcript,
+            client,
+            concepts=concepts,
+            title=title,
+            max_words=args.chunk_words,
+            max_cards=args.max_cards,
+            max_repairs=args.max_repairs,
+            on_chunk=progress,
+        )
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+    except (LLMError, FlashcardsError) as error:
+        print(f"Error: {error}")
+        return 1
+    paths = write_flashcards(
+        deck, out_dir, deck_name=args.deck, anki_header=not args.plain_csv
+    )
+    if deck.dropped_ungrounded:
+        print(
+            f"Dropped {len(deck.dropped_ungrounded)} card(s) whose answers are "
+            "not supported by the transcript"
+        )
+    print(
+        f"{len(deck.cards)} card(s) ({deck.dropped_duplicates} duplicate(s) "
+        f"removed), {deck.llm_calls} LLM call(s), {deck.latency_s:.1f}s"
+    )
+    print("\n".join(f"Wrote {p}" for p in paths))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -1142,6 +1321,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_notes(args)
     if args.command == "concepts":
         return run_concepts(args)
+    if args.command == "flashcards":
+        return run_flashcards(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

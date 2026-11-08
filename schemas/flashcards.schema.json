@@ -1,0 +1,136 @@
+{
+  "$defs": {
+    "Flashcard": {
+      "description": "One card in flashcards.json.",
+      "properties": {
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "answer": {
+          "minLength": 1,
+          "title": "Answer",
+          "type": "string"
+        },
+        "source_time": {
+          "description": "Seconds into the lecture",
+          "minimum": 0,
+          "title": "Source Time",
+          "type": "number"
+        },
+        "origin": {
+          "description": "'llm' = generated from a chunk, 'concept' = from concepts.json",
+          "enum": [
+            "llm",
+            "concept"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "chunk": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Chunk the card was generated from (llm cards)",
+          "title": "Chunk"
+        },
+        "support": {
+          "description": "Share of answer content words found in the source",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Support",
+          "type": "number"
+        }
+      },
+      "required": [
+        "question",
+        "answer",
+        "source_time",
+        "origin",
+        "support"
+      ],
+      "title": "Flashcard",
+      "type": "object"
+    }
+  },
+  "description": "The whole flashcards.json file: cards plus how they were made.",
+  "properties": {
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "cards": {
+      "items": {
+        "$ref": "#/$defs/Flashcard"
+      },
+      "title": "Cards",
+      "type": "array"
+    },
+    "model": {
+      "title": "Model",
+      "type": "string"
+    },
+    "provider": {
+      "title": "Provider",
+      "type": "string"
+    },
+    "chunks": {
+      "minimum": 0,
+      "title": "Chunks",
+      "type": "integer"
+    },
+    "llm_calls": {
+      "minimum": 0,
+      "title": "Llm Calls",
+      "type": "integer"
+    },
+    "prompt_tokens": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Prompt Tokens",
+      "type": "integer"
+    },
+    "completion_tokens": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Completion Tokens",
+      "type": "integer"
+    },
+    "latency_s": {
+      "default": 0.0,
+      "minimum": 0,
+      "title": "Latency S",
+      "type": "number"
+    },
+    "dropped_ungrounded": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Dropped Ungrounded",
+      "type": "array"
+    },
+    "dropped_duplicates": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Dropped Duplicates",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "title",
+    "cards",
+    "model",
+    "provider",
+    "chunks",
+    "llm_calls"
+  ],
+  "title": "FlashcardDeck",
+  "type": "object"
+}

@@ -144,5 +144,16 @@ notetaker concepts --schema                                     # print the JSON
 
 Each chunk goes to the LLM, which lists the technical terms explained in it with a definition and any aliases (e.g. "SVD"). Replies are validated with pydantic (broken JSON gets one repair attempt). A term that does not actually occur in the chunk is dropped and reported, the same concept found in several chunks is merged into one entry (matched on its name or aliases, ignoring case, punctuation and plurals), and timestamps are found by searching the transcript, not asked from the model: each entry lists the time of every paragraph that mentions it. The output file has a published schema in [`schemas/concepts.schema.json`](schemas/concepts.schema.json), and `load_concepts` re-validates it on read, so later steps (flashcards, quizzes) can trust its shape.
 
+Turn a lecture into flashcards you can study in Anki:
+
+```bash
+notetaker flashcards outputs/lecture01/transcript.json                     # flashcards.md + .json + .csv
+notetaker flashcards outputs/lecture01/transcript.json \
+    --concepts outputs/lecture01/concepts.json --deck "Linear Algebra::L01" # add glossary cards
+notetaker flashcards --concepts-only --concepts outputs/lecture01/concepts.json  # no LLM calls at all
+```
+
+The LLM writes up to 6 question/answer cards per chunk. A card is kept only if at least half of its answer's content words (ignoring words like "the" or "is") occur in the transcript chunk, so answers built from outside knowledge are dropped. Each card gets the timestamp of the paragraph it overlaps most, repeated questions are removed, and `--concepts` adds a "What is X?" card for every glossary entry. `flashcards.csv` imports directly with Anki's File > Import: header lines set the deck, note type and tags (use `--plain-csv` for Anki older than 2.1.55). The JSON format is published in [`schemas/flashcards.schema.json`](schemas/flashcards.schema.json).
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

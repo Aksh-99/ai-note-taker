@@ -4,6 +4,27 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-07 · Step 3.5: Flashcard generation (Q/A pairs), exportable to Anki CSV
+
+**What I did**
+- Added `src/notetaker/flashcards.py`: one LLM call per transcript chunk asks for up to 6 question/answer cards as JSON, validated with a pydantic schema (`CardSchema`: non-empty fields, questions at most 40 words, answers at most 60). Common small-model variants are accepted (a bare list, `"flashcards"` instead of `"cards"`, `Q`/`A` or `front`/`back` keys) and invalid replies go through the same repair loop as notes and concepts
+- Grounding check: at least half of the answer's distinct content words (stopwords removed, plurals folded) must occur in the chunk the model read. Cards that fail are dropped and listed in `dropped_ungrounded`
+- Timestamps come from the transcript: each card gets the start of the chunk paragraph that shares the most content words with it
+- `--concepts concepts.json` turns every glossary entry from Step 3.4 into a "What is X?" card with no LLM call, and `--concepts-only` builds a whole deck that way for free
+- De-duplication: questions are compared on their content words with a word-level similarity ratio (threshold 0.9), so "What is an eigenvalue?" and "What is the eigenvalue?" collapse into one card, while "not" is kept as a content word so opposite questions stay apart. Concept cards win ties; the deck is sorted by lecture time
+- Anki export: `flashcards.csv` has Front, Back and Tags columns, written with Python's `csv` module so commas, quotes and newlines are escaped correctly. Anki file headers (`#separator`, `#deck`, `#notetype`, `#tags column`) make the import zero-setup; `--plain-csv` drops them for older Anki. The back of each card ends with its timestamp, and tags are the deck name (made space-free) plus the card origin (`llm` or `concept`)
+- Output is a pydantic model (`FlashcardDeck`) written as `flashcards.json` + `flashcards.md`, re-validated by `load_flashcards`, with its JSON Schema committed in `schemas/flashcards.schema.json` and a drift test
+- New CLI command `notetaker flashcards` (`-o`, `--title`, `--deck`, `--concepts`, `--concepts-only`, `--max-cards`, `--plain-csv`, `-p`, `-m`, `--chunk-words`, `--max-repairs`, `--schema`) and a README section
+- 35 new tests in `tests/test_flashcards.py`, all offline with `FakeLLMClient`. `make check` passes (491 tests, lint clean)
+
+**How it works**
+The model writes the questions and answers, and code checks everything it can. Checking that an answer is faithful properly needs another model (that is Step 3.7), but a cheap proxy catches the worst failures: vocabulary overlap. I strip the answer down to its content words and compute the share of them that appear in the transcript chunk, a set-overlap score between 0 and 1. If the lecturer never used most of those words, the answer probably came from the model's own knowledge, so the card is dropped. The same content-word sets solve two more problems. Finding the timestamp is a tiny retrieval task: score each paragraph by how many words it shares with the card and take the best one. Finding duplicates is a similarity task: compare the content words of two questions with a ratio of 2 x matching words / total words, which ignores filler like "an" versus "the". For the export, Anki is the standard free spaced-repetition app, and its importer reads plain CSV with a few optional header lines, so the file opens straight into the right deck with tags attached.
+
+**Next up**
+Step 3.6: Quiz generation (multiple choice with distractors).
+
+---
+
 ## 2026-11-06 · Step 3.4: Key concepts + definitions extraction as JSON with schema validation
 
 **What I did**
