@@ -4,6 +4,27 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-08 · Step 3.6: Quiz generation (multiple choice with distractors)
+
+**What I did**
+- Added `src/notetaker/quiz.py`: one LLM call per transcript chunk asks for up to 4 multiple-choice questions as JSON, each with the correct answer, 3 distractors and a one-sentence explanation as separate fields
+- Replies are validated with pydantic (`QuestionSchema`): at least 2 distractors (extras are cut to 3), questions at most 50 words, options at most 30, all options different after normalization (so "Gradient." and "the gradients" count as the same option), and no "all/none of the above" options. Invalid replies go through the usual repair loop, and common small-model variants (bare list, `answer`/`wrong_answers`/`stem` keys) are accepted
+- Grounding check reused from flashcards: at least half of the correct answer's content words must occur in the chunk, otherwise the question is dropped and listed in `dropped_ungrounded`
+- Options are shuffled in code with a seeded random generator (`--seed`, per-question seed from a CRC32 checksum of the question), so the same input always gives the same quiz but the answer is spread evenly over A to D
+- `--concepts concepts.json` adds "Which term matches this definition?" questions with no LLM call: the term is masked out of its own definition, and the distractors are the 3 glossary terms first mentioned closest in time to it
+- Two quality signals on the `Quiz` model: `answer_positions()` (how often the key is at each letter) and `longest_option_rate()` (share of questions where the key is strictly the longest option), printed by the CLI
+- Output `quiz.json` + `quiz.md` (questions first, answer key with explanations and timestamps at the end), re-validated by `load_quiz`, with its JSON Schema in `schemas/quiz.schema.json` and a drift test
+- New CLI command `notetaker quiz` (`-o`, `--title`, `--concepts`, `--concepts-only`, `--max-questions`, `--seed`, `-p`, `-m`, `--chunk-words`, `--max-repairs`, `--schema`) and a README section
+- 38 new tests in `tests/test_quiz.py`, all offline with `FakeLLMClient`. `make check` passes (529 tests, lint clean)
+
+**How it works**
+A multiple-choice item has a stem (the question), a key (the right answer) and distractors (plausible wrong answers). I ask the model for the key and the distractors separately instead of a list of options plus an index, for two reasons: small models often get the index wrong, and LLMs have a known position bias, putting the right answer first far more than a quarter of the time. So the code assembles and shuffles the options itself. The shuffle uses a seeded random generator so results are reproducible; the seed mixes the global seed with a CRC32 checksum of the question, because Python's built-in `hash()` of a string changes every time Python starts. A test checks that over 400 questions the key lands on each of the 4 positions roughly 100 times. For the glossary questions, good distractors come for free: other terms from the same lecture are real concepts the student heard, and terms introduced close together in time tend to be related, which makes them harder to tell apart. Finally, I measure a classic test-writing flaw: the correct option is often the longest, since writers add qualifiers to make it fully true. With 4 options a fair quiz has the key as the longest option about 25% of the time, so a much higher rate is a sign the prompt needs better distractors. Whether the questions are faithful to the lecture is checked properly by the LLM-as-judge eval in the next step.
+
+**Next up**
+Step 3.7: Notes quality eval: faithfulness check against transcript (LLM-as-judge with a free model).
+
+---
+
 ## 2026-11-07 · Step 3.5: Flashcard generation (Q/A pairs), exportable to Anki CSV
 
 **What I did**

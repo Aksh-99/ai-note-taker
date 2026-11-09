@@ -33,6 +33,10 @@ Commands so far:
     notetaker flashcards outputs/lecture01/transcript.json
                           Q/A flashcards (flashcards.md + .json + an Anki CSV);
                           add --concepts concepts.json for glossary cards
+    notetaker quiz outputs/lecture01/transcript.json
+                          multiple-choice quiz with shuffled options
+                          (quiz.md + quiz.json); --concepts adds glossary
+                          questions
 """
 
 import argparse
@@ -535,6 +539,76 @@ def build_parser() -> argparse.ArgumentParser:
         "--schema",
         action="store_true",
         help="print the JSON Schema of flashcards.json and exit",
+    )
+    qz = subcommands.add_parser(
+        "quiz",
+        help="generate a multiple-choice quiz from a transcript.json",
+        description=(
+            "Ask the configured LLM for multiple-choice questions on each "
+            "chunk (a correct answer plus 3 distractors), keep only questions "
+            "whose correct answer uses the lecturer's words, shuffle the "
+            "options, link each question to a timestamp, and write quiz.md "
+            "(answer key at the end) and quiz.json. --concepts adds "
+            "'which term matches this definition?' questions from "
+            "`notetaker concepts`; with --concepts-only no LLM is called."
+        ),
+    )
+    qz.add_argument("transcript", type=Path, nargs="?", help="a transcript.json file")
+    qz.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="where to write the quiz (default: next to the input file)",
+    )
+    qz.add_argument("--title", default=None, help="quiz title (default: folder name)")
+    qz.add_argument(
+        "--concepts",
+        type=Path,
+        default=None,
+        help="a concepts.json (Step 3.4) to add glossary questions from",
+    )
+    qz.add_argument(
+        "--concepts-only",
+        action="store_true",
+        help="only make questions from --concepts; no transcript, no LLM calls",
+    )
+    qz.add_argument(
+        "--max-questions",
+        type=int,
+        default=4,
+        help="most questions per chunk (default: 4)",
+    )
+    qz.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="seed for shuffling the options (default: 0)",
+    )
+    qz.add_argument(
+        "-p",
+        "--provider",
+        choices=get_args(LLMProvider),
+        default=None,
+        help="override NOTETAKER_LLM_PROVIDER",
+    )
+    qz.add_argument("-m", "--model", default=None, help="override NOTETAKER_LLM_MODEL")
+    qz.add_argument(
+        "--chunk-words",
+        type=int,
+        default=1200,
+        help="transcript words per LLM call (default: 1200)",
+    )
+    qz.add_argument(
+        "--max-repairs",
+        type=int,
+        default=1,
+        help="times to ask the model to fix invalid JSON (default: 1)",
+    )
+    qz.add_argument(
+        "--schema",
+        action="store_true",
+        help="print the JSON Schema of quiz.json and exit",
     )
     return parser
 
@@ -1290,6 +1364,114 @@ def run_flashcards(args: argparse.Namespace, client=None) -> int:
     return 0
 
 
+def run_quiz(args: argparse.Namespace, client=None) -> int:
+    """Handle `notetaker quiz`: transcript (and/or concepts) in, quiz out.
+
+    Same input handling as run_flashcards. `client` is only for tests.
+    """
+    import json
+
+    from notetaker.concepts import load_concepts
+    from notetaker.llm import LLMError, make_client
+    from notetaker.quiz import QuizError, generate_quiz, quiz_json_schema, write_quiz
+    from notetaker.transcribe import Transcript
+
+    if args.schema:
+        print(json.dumps(quiz_json_schema(), indent=2))
+        return 0
+    if args.concepts_only and args.concepts is None:
+        print("Error: --concepts-only needs --concepts concepts.json")
+        return 1
+    if args.transcript is None and not args.concepts_only:
+        print("Error: give a transcript.json (or --concepts-only, or --schema)")
+        return 1
+    if args.chunk_words <= 0 or args.max_repairs < 0 or args.max_questions <= 0:
+        print(
+            "Error: --chunk-words and --max-questions must be > 0, --max-repairs >= 0"
+        )
+        return 1
+
+    concepts = None
+    if args.concepts is not None:
+        try:
+            concepts = load_concepts(args.concepts)
+        except FileNotFoundError:
+            print(f"Error: no such file: {args.concepts}")
+            return 1
+        except ValueError as error:
+            print(f"Error: {error}")
+            return 1
+
+    transcript = None
+    if not args.concepts_only:
+        try:
+            transcript = Transcript.load_json(args.transcript)
+        except FileNotFoundError:
+            print(f"Error: no such file: {args.transcript}")
+            return 1
+        except (ValueError, KeyError, TypeError) as error:
+            print(f"Error: {args.transcript} is not a transcript.json ({error})")
+            return 1
+
+    source = args.concepts if args.concepts_only else args.transcript
+    out_dir = args.output_dir or source.parent
+    title = args.title or f"Quiz: {source.parent.name or 'lecture'}"
+
+    def progress(index: int, total: int, chunk) -> None:
+        from notetaker.export import format_timestamp
+
+        print(
+            f"  chunk {index + 1}/{total} "
+            f"[{format_timestamp(chunk.start)}-{format_timestamp(chunk.end)}] "
+            f"{chunk.word_count} words",
+            flush=True,
+        )
+
+    try:
+        if args.concepts_only:
+            client = None
+        elif client is None:
+            client = make_client(
+                get_settings(), provider=args.provider, model=args.model
+            )
+        if client is not None:
+            print(f"Writing quiz questions with {client.provider} · {client.model}")
+        quiz = generate_quiz(
+            transcript,
+            client,
+            concepts=concepts,
+            title=title,
+            max_words=args.chunk_words,
+            max_questions=args.max_questions,
+            max_repairs=args.max_repairs,
+            seed=args.seed,
+            on_chunk=progress,
+        )
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+    except (LLMError, QuizError) as error:
+        print(f"Error: {error}")
+        return 1
+    paths = write_quiz(quiz, out_dir)
+    if quiz.dropped_ungrounded:
+        print(
+            f"Dropped {len(quiz.dropped_ungrounded)} question(s) whose answers "
+            "are not supported by the transcript"
+        )
+    if concepts is not None and len(concepts.concepts) < 4:
+        print("Note: glossary questions need at least 4 concepts; none were made")
+    rate = quiz.longest_option_rate()
+    cue = "" if rate is None else f", key is the longest option in {rate:.0%}"
+    print(
+        f"{len(quiz.questions)} question(s) ({quiz.dropped_duplicates} "
+        f"duplicate(s) removed{cue}), {quiz.llm_calls} LLM call(s), "
+        f"{quiz.latency_s:.1f}s"
+    )
+    print("\n".join(f"Wrote {p}" for p in paths))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -1323,6 +1505,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_concepts(args)
     if args.command == "flashcards":
         return run_flashcards(args)
+    if args.command == "quiz":
+        return run_quiz(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

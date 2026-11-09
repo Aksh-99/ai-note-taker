@@ -1,0 +1,157 @@
+{
+  "$defs": {
+    "QuizQuestion": {
+      "description": "One question in quiz.json, options already shuffled.",
+      "properties": {
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 3,
+          "title": "Options",
+          "type": "array"
+        },
+        "answer": {
+          "description": "Index of the correct option (0 = A)",
+          "minimum": 0,
+          "title": "Answer",
+          "type": "integer"
+        },
+        "explanation": {
+          "default": "",
+          "title": "Explanation",
+          "type": "string"
+        },
+        "source_time": {
+          "description": "Seconds into the lecture",
+          "minimum": 0,
+          "title": "Source Time",
+          "type": "number"
+        },
+        "origin": {
+          "description": "'llm' = generated from a chunk, 'concept' = from concepts.json",
+          "enum": [
+            "llm",
+            "concept"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "chunk": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Chunk the question was generated from",
+          "title": "Chunk"
+        },
+        "support": {
+          "description": "Share of the key's content words found in the source",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Support",
+          "type": "number"
+        }
+      },
+      "required": [
+        "question",
+        "options",
+        "answer",
+        "source_time",
+        "origin",
+        "support"
+      ],
+      "title": "QuizQuestion",
+      "type": "object"
+    }
+  },
+  "description": "The whole quiz.json file: questions plus how they were made.",
+  "properties": {
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "questions": {
+      "items": {
+        "$ref": "#/$defs/QuizQuestion"
+      },
+      "title": "Questions",
+      "type": "array"
+    },
+    "model": {
+      "title": "Model",
+      "type": "string"
+    },
+    "provider": {
+      "title": "Provider",
+      "type": "string"
+    },
+    "chunks": {
+      "minimum": 0,
+      "title": "Chunks",
+      "type": "integer"
+    },
+    "llm_calls": {
+      "minimum": 0,
+      "title": "Llm Calls",
+      "type": "integer"
+    },
+    "prompt_tokens": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Prompt Tokens",
+      "type": "integer"
+    },
+    "completion_tokens": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Completion Tokens",
+      "type": "integer"
+    },
+    "latency_s": {
+      "default": 0.0,
+      "minimum": 0,
+      "title": "Latency S",
+      "type": "number"
+    },
+    "seed": {
+      "default": 0,
+      "description": "Seed used to shuffle the options",
+      "title": "Seed",
+      "type": "integer"
+    },
+    "dropped_ungrounded": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Dropped Ungrounded",
+      "type": "array"
+    },
+    "dropped_duplicates": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Dropped Duplicates",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "title",
+    "questions",
+    "model",
+    "provider",
+    "chunks",
+    "llm_calls"
+  ],
+  "title": "Quiz",
+  "type": "object"
+}

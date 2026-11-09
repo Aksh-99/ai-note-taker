@@ -155,5 +155,15 @@ notetaker flashcards --concepts-only --concepts outputs/lecture01/concepts.json 
 
 The LLM writes up to 6 question/answer cards per chunk. A card is kept only if at least half of its answer's content words (ignoring words like "the" or "is") occur in the transcript chunk, so answers built from outside knowledge are dropped. Each card gets the timestamp of the paragraph it overlaps most, repeated questions are removed, and `--concepts` adds a "What is X?" card for every glossary entry. `flashcards.csv` imports directly with Anki's File > Import: header lines set the deck, note type and tags (use `--plain-csv` for Anki older than 2.1.55). The JSON format is published in [`schemas/flashcards.schema.json`](schemas/flashcards.schema.json).
 
+Make a multiple-choice practice quiz:
+
+```bash
+notetaker quiz outputs/lecture01/transcript.json                          # quiz.md + quiz.json
+notetaker quiz outputs/lecture01/transcript.json --concepts outputs/lecture01/concepts.json
+notetaker quiz --concepts-only --concepts outputs/lecture01/concepts.json  # no LLM calls at all
+```
+
+For each chunk the LLM writes up to 4 questions, each with the correct answer and 3 distractors as separate fields. The code builds the options and shuffles them with a fixed seed (`--seed`), because models tend to put the right answer first. A question is kept only if its correct answer is grounded in the transcript (same content-word test as the flashcards), options that repeat each other or say "all/none of the above" trigger a repair request, and each question links to the paragraph it is about. `--concepts` adds "which term matches this definition?" questions whose wrong options are the glossary terms introduced closest in time, with the term masked out of its own definition. `quiz.md` lists the questions with an answer key at the end, and the CLI reports how often the correct answer is the longest option (a classic giveaway; about 25% is fair with 4 options). The JSON format is published in [`schemas/quiz.schema.json`](schemas/quiz.schema.json).
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

@@ -32,7 +32,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 3.3 Map-reduce summarization for long lectures
 - [x] 3.4 Key concepts + definitions extraction as JSON with schema validation
 - [x] 3.5 Flashcard generation (Q/A pairs), exportable to Anki CSV
-- [ ] 3.6 Quiz generation (multiple choice with distractors)
+- [x] 3.6 Quiz generation (multiple choice with distractors)
 - [ ] 3.7 Notes quality eval: faithfulness check against transcript (LLM-as-judge with a free model)
 
 ## Phase 4: Agent layer
