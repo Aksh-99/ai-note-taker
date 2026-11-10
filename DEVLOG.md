@@ -4,6 +4,28 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-09 · Step 3.7: Notes quality eval (faithfulness, LLM-as-judge)
+
+**What I did**
+- Added `src/notetaker/faithfulness.py`: reads any Phase 3 output (notes, concepts, flashcards or quiz, detected from its top-level key), splits it into claims (overview, summaries, key points, takeaways, "term: definition", "question Answer: key"), and checks each claim against the transcript
+- Evidence retrieval: transcript paragraphs are ranked per claim by IDF-weighted content-word overlap (top 3 by default, ties go to the paragraph nearest the claim's timestamp), plus the paragraph playing at the claim's own timestamp. A batch's evidence is merged round robin by rank under a 1,500-word budget
+- Judge: claims go to the configured free LLM in batches of 6 at temperature 0, with four verdicts (`supported`, `partial`, `unsupported`, `contradicted`), an exact quote and a reason. Replies are validated with pydantic (every statement number exactly once, common spellings like "Partially Supported" or `id`/`label` keys accepted) and go through the usual repair loop. A batch that never gives valid JSON is marked `unjudged` instead of crashing the whole eval
+- Quote verification in code: `difflib.SequenceMatcher` aligns quote and paragraph word by word; at least 80% of the quote must match inside a stretch at most 1.5x its length. A "supported" verdict with a missing or unfound quote counts only half in the strict score
+- Metrics: faithfulness ((supported + 0.5 partial) / judged), strict faithfulness, hallucination rate, quote-verified rate, per-claim-kind scores, and agreement plus Cohen's kappa between the judge and a lexical baseline
+- `--lexical-only`: verdicts from word overlap alone (>= 0.8 supported, >= 0.5 partial), free and offline. `--max-claims N` takes a systematic sample spread over the whole lecture, for free-tier limits
+- Self-preference guard: the CLI and the report warn when the judge is the same provider and model that generated the file
+- Output `faithfulness_<kind>.json` + `.md` (metric tables, then "claims to review" with timestamps, judge reason, quote and evidence times), re-validated by `load_report`, JSON Schema in `schemas/faithfulness.schema.json` with a drift test
+- New CLI command `notetaker faithfulness` (`-t`, `-o`, `--lexical-only`, `--max-claims`, `--batch-size`, `--top-k`, `-p`, `-m`, `--max-repairs`, `--schema`) and a README section
+- 37 new tests in `tests/test_faithfulness.py`, all offline with `FakeLLMClient`. `make check` passes (566 tests, lint clean)
+
+**How it works**
+Faithfulness means "every statement in the notes is backed by the lecture", which is different from "true": a correct fact the lecturer never said is still a hallucination for study notes. Rating a whole document 1 to 10 is vague and unrepeatable, so I break the output into atomic claims and ask a narrow question per claim: is this backed by these excerpts? The whole transcript is too long for a free model, so I first retrieve the few paragraphs most likely to hold the evidence, weighting shared words by IDF, log((N+1)/(df+1)) + 1, so a rare word like "eigenvector" counts more than "matrix" said in every paragraph (the core of BM25). The judge must quote its evidence, and code checks the quote really exists, because judges sometimes claim support they cannot show. LLM judges have known biases: they favour their own writing (so use a different, bigger free model, like Llama 3.3 70B on Groq, and the tool warns otherwise), and they are random (so temperature 0). Finally, I compare the judge to a dumb word-overlap baseline using Cohen's kappa, (p_o - p_e) / (1 - p_e), which is agreement corrected for the agreement two raters would reach by chance. High kappa means the expensive judge adds little; low kappa points at exactly the interesting cases, like paraphrases the baseline misses or negations ("not invertible") it cannot see.
+
+**Next up**
+Step 4.1: LangGraph agent skeleton: transcript -> notes -> tasks pipeline as a graph.
+
+---
+
 ## 2026-11-08 · Step 3.6: Quiz generation (multiple choice with distractors)
 
 **What I did**

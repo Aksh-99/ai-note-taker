@@ -1,0 +1,325 @@
+{
+  "$defs": {
+    "JudgedClaim": {
+      "description": "A claim with its evidence and verdict.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "overview",
+            "summary",
+            "key_point",
+            "takeaway",
+            "definition",
+            "flashcard",
+            "quiz"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time"
+        },
+        "verdict": {
+          "enum": [
+            "supported",
+            "partial",
+            "unsupported",
+            "contradicted",
+            "unjudged"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "quote": {
+          "default": "",
+          "title": "Quote",
+          "type": "string"
+        },
+        "quote_verified": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Quote found in the transcript (None: none was needed)",
+          "title": "Quote Verified"
+        },
+        "reason": {
+          "default": "",
+          "title": "Reason",
+          "type": "string"
+        },
+        "evidence_times": {
+          "description": "Start (s) of the passages the judge saw",
+          "items": {
+            "type": "number"
+          },
+          "title": "Evidence Times",
+          "type": "array"
+        },
+        "lexical_support": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Lexical Support",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "kind",
+        "source",
+        "verdict",
+        "lexical_support"
+      ],
+      "title": "JudgedClaim",
+      "type": "object"
+    },
+    "Summary": {
+      "description": "Aggregate metrics over all claims.",
+      "properties": {
+        "claims": {
+          "minimum": 0,
+          "title": "Claims",
+          "type": "integer"
+        },
+        "judged": {
+          "minimum": 0,
+          "title": "Judged",
+          "type": "integer"
+        },
+        "counts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Counts",
+          "type": "object"
+        },
+        "faithfulness": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "(supported + 0.5 * partial) / judged",
+          "title": "Faithfulness"
+        },
+        "strict_faithfulness": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "As above, but 'supported' without a verified quote counts 0.5",
+          "title": "Strict Faithfulness"
+        },
+        "hallucination_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "(unsupported + contradicted) / judged",
+          "title": "Hallucination Rate"
+        },
+        "quote_verified_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Share of verdicts needing a quote whose quote is in the transcript",
+          "title": "Quote Verified Rate"
+        },
+        "lexical_agreement": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Judge vs lexical baseline, both made yes/no",
+          "title": "Lexical Agreement"
+        },
+        "lexical_kappa": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cohen's kappa of the same comparison",
+          "title": "Lexical Kappa"
+        },
+        "by_kind": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": "Faithfulness per claim kind",
+          "title": "By Kind",
+          "type": "object"
+        }
+      },
+      "required": [
+        "claims",
+        "judged",
+        "counts",
+        "faithfulness",
+        "strict_faithfulness",
+        "hallucination_rate",
+        "quote_verified_rate"
+      ],
+      "title": "Summary",
+      "type": "object"
+    }
+  },
+  "description": "The whole faithfulness_<kind>.json file.",
+  "properties": {
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "target": {
+      "description": "File that was evaluated",
+      "title": "Target",
+      "type": "string"
+    },
+    "target_kind": {
+      "enum": [
+        "notes",
+        "concepts",
+        "flashcards",
+        "quiz"
+      ],
+      "title": "Target Kind",
+      "type": "string"
+    },
+    "generator_model": {
+      "title": "Generator Model",
+      "type": "string"
+    },
+    "generator_provider": {
+      "title": "Generator Provider",
+      "type": "string"
+    },
+    "judge_model": {
+      "title": "Judge Model",
+      "type": "string"
+    },
+    "judge_provider": {
+      "title": "Judge Provider",
+      "type": "string"
+    },
+    "summary": {
+      "$ref": "#/$defs/Summary"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/JudgedClaim"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "total_claims": {
+      "description": "Claims in the file before sampling",
+      "minimum": 0,
+      "title": "Total Claims",
+      "type": "integer"
+    },
+    "llm_calls": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Llm Calls",
+      "type": "integer"
+    },
+    "prompt_tokens": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Prompt Tokens",
+      "type": "integer"
+    },
+    "completion_tokens": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Completion Tokens",
+      "type": "integer"
+    },
+    "latency_s": {
+      "default": 0.0,
+      "minimum": 0,
+      "title": "Latency S",
+      "type": "number"
+    },
+    "batch_errors": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Batch Errors",
+      "type": "array"
+    }
+  },
+  "required": [
+    "title",
+    "target",
+    "target_kind",
+    "generator_model",
+    "generator_provider",
+    "judge_model",
+    "judge_provider",
+    "summary",
+    "claims",
+    "total_claims"
+  ],
+  "title": "FaithfulnessReport",
+  "type": "object"
+}

@@ -33,7 +33,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 3.4 Key concepts + definitions extraction as JSON with schema validation
 - [x] 3.5 Flashcard generation (Q/A pairs), exportable to Anki CSV
 - [x] 3.6 Quiz generation (multiple choice with distractors)
-- [ ] 3.7 Notes quality eval: faithfulness check against transcript (LLM-as-judge with a free model)
+- [x] 3.7 Notes quality eval: faithfulness check against transcript (LLM-as-judge with a free model)
 
 ## Phase 4: Agent layer
 - [ ] 4.1 LangGraph agent skeleton: transcript -> notes -> tasks pipeline as a graph

@@ -37,6 +37,11 @@ Commands so far:
                           multiple-choice quiz with shuffled options
                           (quiz.md + quiz.json); --concepts adds glossary
                           questions
+    notetaker faithfulness outputs/lecture01/notes.json
+                          LLM-as-judge check of notes (or concepts, flashcards,
+                          quiz) against the transcript, with verified quotes
+                          (faithfulness_<kind>.md + .json); --lexical-only is a
+                          free word-overlap baseline
 """
 
 import argparse
@@ -609,6 +614,85 @@ def build_parser() -> argparse.ArgumentParser:
         "--schema",
         action="store_true",
         help="print the JSON Schema of quiz.json and exit",
+    )
+
+    fa = subcommands.add_parser(
+        "faithfulness",
+        help="check notes/concepts/flashcards/quiz against the transcript",
+        description=(
+            "Split a notes.json, concepts.json, flashcards.json or quiz.json "
+            "into claims, retrieve the transcript passages most likely to "
+            "back each one, and ask the configured LLM (as a judge, at "
+            "temperature 0) whether each claim is supported, partial, "
+            "unsupported or contradicted, with an exact quote that is then "
+            "checked against the transcript. Writes faithfulness_<kind>.md "
+            "and .json. Use a different, ideally larger, free model as judge "
+            "than the one that generated the file. --lexical-only needs no LLM."
+        ),
+    )
+    fa.add_argument(
+        "target", type=Path, nargs="?", help="notes/concepts/flashcards/quiz .json"
+    )
+    fa.add_argument(
+        "-t",
+        "--transcript",
+        type=Path,
+        default=None,
+        help="the transcript.json (default: transcript.json next to the target)",
+    )
+    fa.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="where to write the report (default: next to the target)",
+    )
+    fa.add_argument(
+        "--lexical-only",
+        action="store_true",
+        help="word-overlap baseline only: no LLM calls, free and instant",
+    )
+    fa.add_argument(
+        "--max-claims",
+        type=int,
+        default=None,
+        help="check at most this many claims, spread over the lecture",
+    )
+    fa.add_argument(
+        "--batch-size",
+        type=int,
+        default=6,
+        help="claims per judge call (default: 6)",
+    )
+    fa.add_argument(
+        "--top-k",
+        type=int,
+        default=3,
+        help="transcript passages retrieved per claim (default: 3)",
+    )
+    fa.add_argument(
+        "-p",
+        "--provider",
+        choices=get_args(LLMProvider),
+        default=None,
+        help="judge provider (overrides NOTETAKER_LLM_PROVIDER)",
+    )
+    fa.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        help="judge model (overrides NOTETAKER_LLM_MODEL)",
+    )
+    fa.add_argument(
+        "--max-repairs",
+        type=int,
+        default=1,
+        help="times to ask the judge to fix invalid JSON (default: 1)",
+    )
+    fa.add_argument(
+        "--schema",
+        action="store_true",
+        help="print the JSON Schema of the report and exit",
     )
     return parser
 
@@ -1472,6 +1556,116 @@ def run_quiz(args: argparse.Namespace, client=None) -> int:
     return 0
 
 
+def run_faithfulness(args: argparse.Namespace, client=None) -> int:
+    """Handle `notetaker faithfulness`: generated file + transcript in, report out.
+
+    `client` is only for tests (a FakeLLMClient instead of a real judge).
+    """
+    import json
+
+    from notetaker.faithfulness import (
+        evaluate_faithfulness,
+        faithfulness_json_schema,
+        load_target,
+        write_report,
+    )
+    from notetaker.llm import LLMError, make_client
+    from notetaker.transcribe import Transcript
+
+    if args.schema:
+        print(json.dumps(faithfulness_json_schema(), indent=2))
+        return 0
+    if args.target is None:
+        print("Error: give a notes/concepts/flashcards/quiz .json (or --schema)")
+        return 1
+    if (
+        args.batch_size <= 0
+        or args.top_k <= 0
+        or args.max_repairs < 0
+        or (args.max_claims is not None and args.max_claims <= 0)
+    ):
+        print(
+            "Error: --batch-size, --top-k and --max-claims must be > 0, "
+            "--max-repairs >= 0"
+        )
+        return 1
+
+    try:
+        target = load_target(args.target)
+    except FileNotFoundError:
+        print(f"Error: no such file: {args.target}")
+        return 1
+    except ValueError as error:  # also covers invalid JSON (JSONDecodeError)
+        print(f"Error: {error}")
+        return 1
+
+    transcript_path = args.transcript or args.target.parent / "transcript.json"
+    try:
+        transcript = Transcript.load_json(transcript_path)
+    except FileNotFoundError:
+        print(f"Error: no such file: {transcript_path} (pass it with -t)")
+        return 1
+    except (ValueError, KeyError, TypeError) as error:
+        print(f"Error: {transcript_path} is not a transcript.json ({error})")
+        return 1
+
+    def progress(index: int, total: int) -> None:
+        print(f"  judging batch {index + 1}/{total}", flush=True)
+
+    try:
+        if args.lexical_only:
+            client = None
+            print("Lexical baseline only (no LLM calls)")
+        else:
+            if client is None:
+                client = make_client(
+                    get_settings(), provider=args.provider, model=args.model
+                )
+            print(f"Judging {target.kind} with {client.provider} · {client.model}")
+            if (client.provider, client.model) == (target.provider, target.model):
+                print(
+                    "Warning: the judge is the model that generated this file; "
+                    "LLM judges favour their own writing. Pick another model "
+                    "with -p/-m for a fairer score."
+                )
+        report = evaluate_faithfulness(
+            target,
+            transcript,
+            client,
+            target_path=str(args.target),
+            max_claims=args.max_claims,
+            batch_size=args.batch_size,
+            top_k=args.top_k,
+            max_repairs=args.max_repairs,
+            on_batch=progress,
+        )
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+    except LLMError as error:
+        print(f"Error: {error}")
+        return 1
+
+    paths = write_report(report, args.output_dir or args.target.parent)
+    s = report.summary
+
+    def pct(x: float | None) -> str:
+        return "n/a" if x is None else f"{x:.1%}"
+
+    counts = ", ".join(f"{n} {v}" for v, n in s.counts.items() if n)
+    print(
+        f"{s.claims} claim(s): {counts or 'none'}. Faithfulness {pct(s.faithfulness)} "
+        f"(strict {pct(s.strict_faithfulness)}), hallucination rate "
+        f"{pct(s.hallucination_rate)}"
+    )
+    if report.batch_errors:
+        print(f"{len(report.batch_errors)} batch(es) could not be judged; see report")
+    if client is not None:
+        print(f"{report.llm_calls} LLM call(s), {report.latency_s:.1f}s")
+    print("\n".join(f"Wrote {p}" for p in paths))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -1507,6 +1701,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_flashcards(args)
     if args.command == "quiz":
         return run_quiz(args)
+    if args.command == "faithfulness":
+        return run_faithfulness(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

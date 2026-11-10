@@ -165,5 +165,15 @@ notetaker quiz --concepts-only --concepts outputs/lecture01/concepts.json  # no 
 
 For each chunk the LLM writes up to 4 questions, each with the correct answer and 3 distractors as separate fields. The code builds the options and shuffles them with a fixed seed (`--seed`), because models tend to put the right answer first. A question is kept only if its correct answer is grounded in the transcript (same content-word test as the flashcards), options that repeat each other or say "all/none of the above" trigger a repair request, and each question links to the paragraph it is about. `--concepts` adds "which term matches this definition?" questions whose wrong options are the glossary terms introduced closest in time, with the term masked out of its own definition. `quiz.md` lists the questions with an answer key at the end, and the CLI reports how often the correct answer is the longest option (a classic giveaway; about 25% is fair with 4 options). The JSON format is published in [`schemas/quiz.schema.json`](schemas/quiz.schema.json).
 
+Check that generated material only says what the lecture says (Step 3.7):
+
+```bash
+notetaker faithfulness outputs/lecture01/notes.json -p groq -m llama-3.3-70b-versatile   # LLM judge
+notetaker faithfulness outputs/lecture01/quiz.json --max-claims 30                        # sample 30 claims
+notetaker faithfulness outputs/lecture01/notes.json --lexical-only                        # free, no LLM
+```
+
+The file (notes, concepts, flashcards or quiz) is split into claims, one per key point, definition, card or question. For each claim the transcript paragraphs most likely to back it are retrieved by IDF-weighted word overlap, and a free judge model labels each claim `supported`, `partial`, `unsupported` or `contradicted` at temperature 0, copying an exact quote as evidence. The code checks that every quote really occurs in the transcript; a "supported" verdict with a missing or invented quote only counts half in the strict score. The report (`faithfulness_<kind>.md` + `.json`) gives faithfulness, strict faithfulness, hallucination rate, agreement with a word-overlap baseline (Cohen's kappa) and a list of claims to review with timestamps. Use a different, ideally larger, model as judge than the one that wrote the notes: LLM judges favour their own writing, and the CLI warns if they are the same. The JSON format is published in [`schemas/faithfulness.schema.json`](schemas/faithfulness.schema.json).
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.
