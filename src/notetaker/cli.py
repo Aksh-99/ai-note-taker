@@ -42,6 +42,10 @@ Commands so far:
                           quiz) against the transcript, with verified quotes
                           (faithfulness_<kind>.md + .json); --lexical-only is a
                           free word-overlap baseline
+    notetaker agent outputs/lecture01/transcript.json
+                          run the whole pipeline as a LangGraph graph (notes,
+                          concepts, flashcards, quiz, tasks) in one command;
+                          --graph prints the graph as a Mermaid diagram
 """
 
 import argparse
@@ -54,6 +58,11 @@ from notetaker import __version__
 from notetaker.audio import AudioError
 from notetaker.chunking import Chunk
 from notetaker.config import LLMProvider, WhisperModel, get_settings
+
+# Stage names for `notetaker agent --steps`. Kept as a literal here (and
+# checked against agent.STEP_ORDER in the tests) so building the parser does
+# not import langgraph, which keeps every other command fast to start.
+STEP_NAMES = ("notes", "concepts", "flashcards", "quiz", "tasks")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -693,6 +702,68 @@ def build_parser() -> argparse.ArgumentParser:
         "--schema",
         action="store_true",
         help="print the JSON Schema of the report and exit",
+    )
+    ag = subcommands.add_parser(
+        "agent",
+        help="run the whole pipeline (notes -> concepts -> flashcards -> quiz -> "
+        "tasks) as a LangGraph graph",
+        description=(
+            "Run every stage on one transcript in a single command. The stages "
+            "are nodes of a LangGraph graph that share one state, so later "
+            "stages reuse earlier results (flashcards and quiz get the "
+            "glossary from the concepts stage). A failed stage is reported and "
+            "the rest still run. Writes each stage's usual files plus "
+            "pipeline.json (timings, LLM calls, errors)."
+        ),
+    )
+    ag.add_argument("transcript", type=Path, nargs="?", help="a transcript.json file")
+    ag.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="where to write outputs (default: next to the transcript)",
+    )
+    ag.add_argument(
+        "--title", default=None, help="lecture title (default: folder name)"
+    )
+    ag.add_argument(
+        "--steps",
+        nargs="+",
+        choices=STEP_NAMES,
+        default=None,
+        help="run only these stages (always in pipeline order; default: all)",
+    )
+    ag.add_argument(
+        "-p",
+        "--provider",
+        choices=get_args(LLMProvider),
+        default=None,
+        help="override NOTETAKER_LLM_PROVIDER",
+    )
+    ag.add_argument("-m", "--model", default=None, help="override NOTETAKER_LLM_MODEL")
+    ag.add_argument(
+        "--chunk-words",
+        type=int,
+        default=1200,
+        help="transcript words per LLM call (default: 1200)",
+    )
+    ag.add_argument(
+        "--max-repairs",
+        type=int,
+        default=1,
+        help="times to ask the model to fix invalid JSON (default: 1)",
+    )
+    ag.add_argument(
+        "--no-reduce",
+        action="store_true",
+        help="notes stage: skip merging chunk notes into topics",
+    )
+    ag.add_argument("--seed", type=int, default=0, help="quiz shuffle seed")
+    ag.add_argument(
+        "--graph",
+        action="store_true",
+        help="print the pipeline graph as Mermaid text and exit (no LLM calls)",
     )
     return parser
 
@@ -1666,6 +1737,91 @@ def run_faithfulness(args: argparse.Namespace, client=None) -> int:
     return 0
 
 
+def run_agent(args: argparse.Namespace, client=None) -> int:
+    """Handle `notetaker agent`: the whole pipeline in one command.
+
+    `client` is only for tests (a FakeLLMClient).
+    """
+    from notetaker.agent import (
+        PipelineOptions,
+        pipeline_mermaid,
+        run_pipeline,
+        write_pipeline,
+    )
+    from notetaker.llm import LLMError, make_client
+    from notetaker.transcribe import Transcript
+
+    try:
+        options = PipelineOptions(
+            steps=tuple(args.steps or STEP_NAMES),
+            chunk_words=args.chunk_words,
+            max_repairs=args.max_repairs,
+            reduce=not args.no_reduce,
+            seed=args.seed,
+        )
+    except ValueError as error:
+        print(f"Error: {error}")
+        return 1
+    if args.graph:
+        print(pipeline_mermaid(options))
+        return 0
+    if args.transcript is None:
+        print("Error: give a transcript.json (or --graph)")
+        return 1
+    try:
+        transcript = Transcript.load_json(args.transcript)
+    except FileNotFoundError:
+        print(f"Error: no such file: {args.transcript}")
+        return 1
+    except (ValueError, KeyError, TypeError) as error:
+        print(f"Error: {args.transcript} is not a transcript.json ({error})")
+        return 1
+
+    out_dir = args.output_dir or args.transcript.parent
+    title = args.title or (args.transcript.parent.name or "lecture")
+    try:
+        if client is None and options.needs_llm:
+            client = make_client(
+                get_settings(), provider=args.provider, model=args.model
+            )
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+    except LLMError as error:
+        print(f"Error: {error}")
+        return 1
+    if options.needs_llm:
+        print(
+            f"Running {' -> '.join(options.steps)} with "
+            f"{client.provider} · {client.model}"
+        )
+    else:
+        print(f"Running {' -> '.join(options.steps)} (no LLM needed)")
+
+    def progress(step: str) -> None:
+        print(f"  [{step}]", flush=True)
+
+    result = run_pipeline(transcript, client, options, title=title, on_step=progress)
+    paths = write_pipeline(result, out_dir)
+    for record in result.log:
+        if record["step"] in options.steps:
+            calls = record.get("llm_calls")
+            extra = f", {calls} LLM call(s)" if calls else ""
+            print(
+                f"  {record['step']}: {record['status']} "
+                f"({record['seconds']:.1f}s{extra})"
+            )
+    if result.tasks is not None:
+        print(f"Found {len(result.tasks.candidates)} possible task(s)/deadline(s)")
+    for error in result.errors:
+        print(f"Error in {error['step']}: {error['error']}")
+    for path in paths:
+        print(f"Wrote {path}")
+    # Exit code 1 if any stage failed, so scripts and CI can notice, even
+    # though the stages that worked have still been written.
+    return 0 if result.ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -1703,6 +1859,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_quiz(args)
     if args.command == "faithfulness":
         return run_faithfulness(args)
+    if args.command == "agent":
+        return run_agent(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

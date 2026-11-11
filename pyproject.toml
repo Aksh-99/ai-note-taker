@@ -36,6 +36,9 @@ dependencies = [
     # Small and pure-computation: it uses rapidfuzz's fast C++ Levenshtein.
     # 3.0.5 is the oldest release that works with current rapidfuzz.
     "jiwer>=3.0.5",
+    # Graph-based orchestration of the pipeline stages (agent.py). Free and
+    # open source (MIT); it runs locally and needs no account or API key.
+    "langgraph>=1.0",
 ]
 
 [project.optional-dependencies]

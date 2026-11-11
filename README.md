@@ -105,7 +105,7 @@ notetaker baseline --rtf-budget 1.0   # allow slower models in the recommendatio
 
 This writes `reports/baseline.md` and `reports/baseline.json`: one row per model size with WER, CER, term recall, real-time factor and RAM, the Pareto frontier (models no other model beats on both accuracy and speed), the most accurate model within the speed budget, and what each step up in size buys in WER versus extra compute. Report names are matched across folders, so `whisper-small` in the WER report and `small` in the benchmark land in the same row. See `reports/baseline.md` for the full command loop.
 
-### LLM setup (for notes, flashcards and quizzes)
+### LLM setup (for notes, flashcards, quizzes and the agent)
 
 Notes generation talks to an LLM through one client (`src/notetaker/llm.py`) that supports three free options. Pick one with `NOTETAKER_LLM_PROVIDER` in `.env`:
 
@@ -174,6 +174,25 @@ notetaker faithfulness outputs/lecture01/notes.json --lexical-only              
 ```
 
 The file (notes, concepts, flashcards or quiz) is split into claims, one per key point, definition, card or question. For each claim the transcript paragraphs most likely to back it are retrieved by IDF-weighted word overlap, and a free judge model labels each claim `supported`, `partial`, `unsupported` or `contradicted` at temperature 0, copying an exact quote as evidence. The code checks that every quote really occurs in the transcript; a "supported" verdict with a missing or invented quote only counts half in the strict score. The report (`faithfulness_<kind>.md` + `.json`) gives faithfulness, strict faithfulness, hallucination rate, agreement with a word-overlap baseline (Cohen's kappa) and a list of claims to review with timestamps. Use a different, ideally larger, model as judge than the one that wrote the notes: LLM judges favour their own writing, and the CLI warns if they are the same. The JSON format is published in [`schemas/faithfulness.schema.json`](schemas/faithfulness.schema.json).
+
+Run the whole pipeline in one command (Step 4.1):
+
+```bash
+notetaker agent outputs/lecture01/transcript.json                 # every stage, all files next to it
+notetaker agent outputs/lecture01/transcript.json --steps notes quiz -p groq
+notetaker agent outputs/lecture01/transcript.json --steps tasks   # offline, no LLM
+notetaker agent --graph                                            # print the graph as Mermaid
+```
+
+The stages are nodes of a [LangGraph](https://github.com/langchain-ai/langgraph) graph (`src/notetaker/agent.py`) that share one state, so later stages reuse earlier results: flashcards and quiz automatically get the glossary from the concepts stage, with no files passed by hand. A first node stops the run before any LLM call if the transcript is empty (a conditional edge). If one stage fails, the error is recorded and the other stages still run and write their files; the command then exits with code 1. Stages run one after another to stay inside free-tier rate limits. Besides each stage's usual files it writes `pipeline.json` (timing, LLM calls and errors per stage) and `tasks.md`, a list of sentences where the lecturer seems to assign work ("problem set 3 is due Friday"), found by a free keyword scan with timestamps (turning these into dated to-dos comes in Step 4.2).
+
+```mermaid
+graph TD;
+    begin([start]) --> check_transcript;
+    check_transcript -. continue .-> notes;
+    check_transcript -. empty .-> finish([end]);
+    notes --> concepts --> flashcards --> quiz --> tasks --> finish;
+```
 
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

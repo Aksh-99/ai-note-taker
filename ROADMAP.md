@@ -36,7 +36,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 3.7 Notes quality eval: faithfulness check against transcript (LLM-as-judge with a free model)
 
 ## Phase 4: Agent layer
-- [ ] 4.1 LangGraph agent skeleton: transcript -> notes -> tasks pipeline as a graph
+- [x] 4.1 LangGraph agent skeleton: transcript -> notes -> tasks pipeline as a graph
 - [ ] 4.2 Deadline/assignment extraction ("homework due Friday") with date resolution
 - [ ] 4.3 To-do export (JSON + .ics calendar file)
 - [ ] 4.4 Agent tests with recorded fixtures (no live LLM calls in CI)
