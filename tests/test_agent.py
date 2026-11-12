@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
 import pytest
@@ -93,8 +94,23 @@ QUIZ_REPLY = json.dumps(
     }
 )
 
+TASKS_REPLY = json.dumps(
+    {
+        "tasks": [
+            {
+                "excerpt": 1,
+                "title": "Problem set two",
+                "kind": "homework",
+                "details": "",
+                "due_phrase": "Friday",
+            }
+        ]
+    }
+)
+
 # Words that appear only in each stage's system prompt.
 ROUTES = {
+    "student to-dos": "tasks",
     "builds glossaries": "concepts",
     "study flashcards": "flashcards",
     "multiple-choice": "quiz",
@@ -112,6 +128,7 @@ class RoutingFakeClient:
             "concepts": CONCEPTS_REPLY,
             "flashcards": CARDS_REPLY,
             "quiz": QUIZ_REPLY,
+            "tasks": TASKS_REPLY,
         }
     )
     model: str = "fake-model"
@@ -142,7 +159,9 @@ def test_options_validate_and_keep_pipeline_order():
     options = PipelineOptions(steps=("tasks", "notes"))
     assert options.steps == ("notes", "tasks")
     assert options.needs_llm
-    assert not PipelineOptions(steps=("tasks",)).needs_llm
+    # The tasks stage uses the LLM unless told to use offline rules.
+    assert PipelineOptions(steps=("tasks",)).needs_llm
+    assert not PipelineOptions(steps=("tasks",), task_llm=False).needs_llm
     with pytest.raises(ValueError):
         PipelineOptions(steps=("summarize",))
     with pytest.raises(ValueError):
@@ -154,8 +173,10 @@ def test_options_validate_and_keep_pipeline_order():
 def test_llm_steps_need_a_client():
     with pytest.raises(ValueError):
         build_pipeline(None, PipelineOptions(steps=("notes",)))
-    # The offline tasks step builds fine without one.
-    build_pipeline(None, PipelineOptions(steps=("tasks",)))
+    with pytest.raises(ValueError, match="need an LLM client"):
+        build_pipeline(None, PipelineOptions(steps=("tasks",)))
+    # The offline (rule-based) tasks step builds fine without one.
+    build_pipeline(None, PipelineOptions(steps=("tasks",), task_llm=False))
 
 
 def test_full_pipeline_runs_every_stage_in_order():
@@ -168,12 +189,14 @@ def test_full_pipeline_runs_every_stage_in_order():
     assert started == list(STEP_ORDER)
     assert [r["step"] for r in result.log] == ["check_transcript", *STEP_ORDER]
     # The stage order shows up in the calls the LLM received.
-    assert client.calls == ["notes", "concepts", "flashcards", "quiz"]
+    assert client.calls == ["notes", "concepts", "flashcards", "quiz", "tasks"]
     assert result.notes.sections[0].heading == "Eigenvalues"
     assert result.concepts.concepts[0].term == "eigenvalue"
     assert result.tasks.candidates[0].time_phrases == ["Friday"]
     assert result.notes.title == "Notes: L1"
-    assert result.llm_calls == 4
+    assert result.tasks.tasks[0].title == "Problem set two"
+    assert result.tasks.method == "llm"
+    assert result.llm_calls == 5
     assert result.provider == "fake"
 
 
@@ -241,7 +264,7 @@ def test_write_pipeline_outputs(tmp_path):
     } <= names
     summary = json.loads((tmp_path / "pipeline.json").read_text())
     assert summary["steps"] == list(STEP_ORDER)
-    assert summary["llm_calls"] == 4
+    assert summary["llm_calls"] == 5
     assert summary["errors"] == []
 
 
@@ -252,12 +275,16 @@ def _write_transcript(tmp_path, transcript=LECTURE):
 
 def test_cli_agent_end_to_end(tmp_path, capsys):
     path = _write_transcript(tmp_path)
-    args = cli.build_parser().parse_args(["agent", str(path), "--no-reduce"])
+    args = cli.build_parser().parse_args(
+        ["agent", str(path), "--no-reduce", "--lecture-date", "2026-11-11"]
+    )
     code = cli.run_agent(args, client=RoutingFakeClient())
     out = capsys.readouterr().out
     assert code == 0, out
     assert "notes -> concepts -> flashcards -> quiz -> tasks" in out
-    assert "Found 1 possible task" in out
+    assert "Found 1 task(s) in 1 candidate" in out
+    # 2026-11-11 is a Wednesday, so "Friday" is the 13th.
+    assert "Problem set two (homework): 2026-11-13" in out
     assert (path.parent / "tasks.md").exists()
     summary = json.loads((path.parent / "pipeline.json").read_text())
     assert summary["title"] == "lecture01"
@@ -266,8 +293,27 @@ def test_cli_agent_end_to_end(tmp_path, capsys):
 def test_cli_agent_offline_tasks_only(tmp_path, capsys):
     path = _write_transcript(tmp_path)
     # No client and no LLM settings needed for the offline step.
-    assert cli.main(["agent", str(path), "--steps", "tasks"]) == 0
-    assert "no LLM needed" in capsys.readouterr().out
+    args = ["agent", str(path), "--steps", "tasks", "--no-task-llm"]
+    assert cli.main(args) == 0
+    out = capsys.readouterr().out
+    assert "no LLM needed" in out
+    assert "Problem set two (homework)" in out
+
+
+def test_tasks_stage_gets_lecture_date_and_class_days():
+    options = PipelineOptions(
+        steps=("tasks",), lecture_date=date(2026, 11, 11), class_days=(0, 2)
+    )
+    result = run_pipeline(LECTURE, RoutingFakeClient(), options)
+    task = result.tasks.tasks[0]
+    assert task.due_date == date(2026, 11, 13)
+    assert result.tasks.reference_date == date(2026, 11, 11)
+
+
+def test_cli_agent_rejects_bad_lecture_date(tmp_path, capsys):
+    path = _write_transcript(tmp_path)
+    assert cli.main(["agent", str(path), "--lecture-date", "Friday"]) == 1
+    assert "YYYY-MM-DD" in capsys.readouterr().out
 
 
 def test_cli_agent_failure_exit_code(tmp_path, capsys):

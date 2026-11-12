@@ -4,6 +4,27 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-11 · Step 4.2: Deadline/assignment extraction with date resolution
+
+**What I did**
+- Added `src/notetaker/dates.py`: a deterministic resolver that turns a spoken deadline phrase into a calendar date relative to the lecture date. It handles weekdays ("Friday", "this Wednesday", "next Friday"), "today/tonight/tomorrow", "in 3 days" / "in two weeks", "end of the week/month", month and day in many spellings ("November 20th", "Nov. 20", "the twentieth of November"), ISO dates, US numeric dates ("12/1"), "the 15th", "next class" (with the course's meeting days) and clock times ("5pm", "11:59 pm", "noon", "midnight" = 23:59). Every result records the rule that fired and an `ambiguous` flag
+- Conventions are written down in the module docstring, for example: a bare weekday is the next one strictly after the lecture day, "next Friday" is the Friday of the following week (flagged ambiguous), a month and day already past rolls into next year
+- Extended `src/notetaker/tasks.py` with the LLM half: keyword candidates go to the LLM in numbered batches of 8 (with context and timestamps), and it returns tasks with title, kind (homework, exam, reading, project, other), details and the deadline words copied verbatim. Replies are validated with pydantic, with lenient fixes for small models ("Midterm" -> exam, `candidate`/`id` instead of `excerpt`, bare lists), plus the usual repair loop
+- Grounding check: the copied deadline phrase must really occur in the excerpt (compared word by word, ignoring case and punctuation). If the model invented it, the keyword scan's own time words are used and the date rule says so
+- Fail-soft: if a batch never gives valid JSON or the API errors, those candidates go through a rule-based fallback instead of being lost, and a warning is recorded. `use_llm=False` runs the fallback for everything, fully offline
+- Repeated mentions ("again, read chapter 4 by Tuesday") merge into one task with all mention times; a later mention can fill in a missing date. Tasks are sorted by due date, undated ones last. Candidates the LLM judged false alarms are listed as rejected
+- `tasks.md` is now a checkbox to-do list ("- [ ] **Problem set 3** (homework), due **Fri 2026-11-13 17:00** [00:00:12]"), with `(?)` on ambiguous dates, followed by the candidate sentences
+- New CLI command `notetaker tasks` (`--lecture-date YYYY-MM-DD|today`, `--class-days mon wed`, `--no-llm`, `--batch-size`, `-p`, `-m`, `--max-repairs`). The agent's tasks node now uses the LLM too, with new `--lecture-date`, `--class-days` and `--no-task-llm` options
+- 58 new tests (`tests/test_dates.py` and more in `tests/test_tasks.py` and `tests/test_agent.py`), all offline with fake clients. `make check` passes (644 tests, lint clean)
+
+**How it works**
+The design splits the problem by what each tool is good at. An LLM is good at reading: it can tell that "problem set 3 is due Friday" is homework while "this theorem is due to Gauss" is not, which a regex cannot. But LLMs are bad at calendar arithmetic: ask one "what date is next Friday after 11 November 2026?" and it may guess the weekday wrong or give a different answer each run. So the model only copies the deadline words, and plain code turns them into a date. The core trick for weekdays is modular arithmetic on a 7-day clock: days ahead = (target weekday - today's weekday) mod 7, so Wednesday (2) to Friday (4) is 2 days and Friday (4) to Monday (0) is (0 - 4) mod 7 = 3. Because the phrase is checked against the transcript and every date carries the rule that produced it, a student can always see why a deadline landed where it did, and ambiguous phrases like "next Friday" are flagged instead of silently guessed. This mirrors a common pattern in production LLM systems: let the model do the fuzzy language part, and keep anything with a single right answer (dates, maths, lookups) in deterministic code that can be unit tested.
+
+**Next up**
+Step 4.3: To-do export (JSON + .ics calendar file).
+
+---
+
 ## 2026-11-10 · Step 4.1: LangGraph agent skeleton (transcript -> notes -> tasks as a graph)
 
 **What I did**

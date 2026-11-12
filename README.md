@@ -180,11 +180,12 @@ Run the whole pipeline in one command (Step 4.1):
 ```bash
 notetaker agent outputs/lecture01/transcript.json                 # every stage, all files next to it
 notetaker agent outputs/lecture01/transcript.json --steps notes quiz -p groq
-notetaker agent outputs/lecture01/transcript.json --steps tasks   # offline, no LLM
+notetaker agent outputs/lecture01/transcript.json --lecture-date 2026-11-11   # dated to-dos
+notetaker agent outputs/lecture01/transcript.json --steps tasks --no-task-llm  # offline, no LLM
 notetaker agent --graph                                            # print the graph as Mermaid
 ```
 
-The stages are nodes of a [LangGraph](https://github.com/langchain-ai/langgraph) graph (`src/notetaker/agent.py`) that share one state, so later stages reuse earlier results: flashcards and quiz automatically get the glossary from the concepts stage, with no files passed by hand. A first node stops the run before any LLM call if the transcript is empty (a conditional edge). If one stage fails, the error is recorded and the other stages still run and write their files; the command then exits with code 1. Stages run one after another to stay inside free-tier rate limits. Besides each stage's usual files it writes `pipeline.json` (timing, LLM calls and errors per stage) and `tasks.md`, a list of sentences where the lecturer seems to assign work ("problem set 3 is due Friday"), found by a free keyword scan with timestamps (turning these into dated to-dos comes in Step 4.2).
+The stages are nodes of a [LangGraph](https://github.com/langchain-ai/langgraph) graph (`src/notetaker/agent.py`) that share one state, so later stages reuse earlier results: flashcards and quiz automatically get the glossary from the concepts stage, with no files passed by hand. A first node stops the run before any LLM call if the transcript is empty (a conditional edge). If one stage fails, the error is recorded and the other stages still run and write their files; the command then exits with code 1. Stages run one after another to stay inside free-tier rate limits. Besides each stage's usual files it writes `pipeline.json` (timing, LLM calls and errors per stage) and `tasks.md`, a dated to-do list (see below).
 
 ```mermaid
 graph TD;
@@ -193,6 +194,15 @@ graph TD;
     check_transcript -. empty .-> finish([end]);
     notes --> concepts --> flashcards --> quiz --> tasks --> finish;
 ```
+
+Extract homework, exams and readings with real due dates (Step 4.2):
+
+```bash
+notetaker tasks outputs/lecture01/transcript.json --lecture-date 2026-11-11 --class-days mon wed
+notetaker tasks outputs/lecture01/transcript.json --lecture-date today --no-llm   # offline rules
+```
+
+A keyword scan finds the few sentences that might assign work ("problem set 3 is due next Friday at 11:59 pm"), with timestamps. The LLM reads only those sentences, in batches of 8, decides which are real tasks (skipping false alarms like "this result is due to Gauss") and copies the deadline words exactly. It does not do calendar maths: plain code in `src/notetaker/dates.py` turns the phrase into a date relative to `--lecture-date` (weekdays, "tomorrow", "in two weeks", "end of the week", "November 20th", "12/1", "the 15th", times like "5pm" or "midnight", and "next class" with `--class-days`). Each task records which rule fired and is marked `(?)` when the phrase is ambiguous, such as "next Friday". If the model quotes words that are not in the transcript, the keyword scan's own time words are used instead, and if an LLM batch fails, a rule-based fallback keeps those deadlines. Repeated mentions of the same task are merged. Output: `tasks.md` (a checkbox to-do list sorted by due date) and `tasks.json`.
 
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

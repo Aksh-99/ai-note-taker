@@ -46,6 +46,10 @@ Commands so far:
                           run the whole pipeline as a LangGraph graph (notes,
                           concepts, flashcards, quiz, tasks) in one command;
                           --graph prints the graph as a Mermaid diagram
+    notetaker tasks outputs/lecture01/transcript.json --lecture-date 2026-11-11
+                          find homework, exams and readings with deadlines
+                          resolved to real dates (tasks.md + tasks.json);
+                          --no-llm uses offline rules instead of an LLM
 """
 
 import argparse
@@ -760,12 +764,108 @@ def build_parser() -> argparse.ArgumentParser:
         help="notes stage: skip merging chunk notes into topics",
     )
     ag.add_argument("--seed", type=int, default=0, help="quiz shuffle seed")
+    _add_task_date_options(ag)
+    ag.add_argument(
+        "--no-task-llm",
+        action="store_true",
+        help="tasks stage: use offline rules instead of the LLM",
+    )
     ag.add_argument(
         "--graph",
         action="store_true",
         help="print the pipeline graph as Mermaid text and exit (no LLM calls)",
     )
+
+    tk = subcommands.add_parser(
+        "tasks",
+        help="extract homework, exams and readings with resolved deadlines",
+        description=(
+            "Scan a transcript.json for sentences that may assign work "
+            "(homework, problem sets, exams, readings), let the configured "
+            "LLM decide which are real tasks and copy their deadline words, "
+            "then turn those words into calendar dates relative to "
+            "--lecture-date. Writes tasks.md (a to-do list) and tasks.json. "
+            "With --no-llm a rule-based fallback runs offline."
+        ),
+    )
+    tk.add_argument("transcript", type=Path, help="a transcript.json file")
+    tk.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="where to write the tasks (default: next to the input file)",
+    )
+    tk.add_argument("--title", default=None, help="title (default: folder name)")
+    _add_task_date_options(tk)
+    tk.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="no LLM calls: rule-based tasks from sentences that mention a time",
+    )
+    tk.add_argument(
+        "--batch-size",
+        type=int,
+        default=8,
+        help="candidate sentences per LLM call (default: 8)",
+    )
+    tk.add_argument(
+        "-p",
+        "--provider",
+        choices=get_args(LLMProvider),
+        default=None,
+        help="override NOTETAKER_LLM_PROVIDER",
+    )
+    tk.add_argument("-m", "--model", default=None, help="override NOTETAKER_LLM_MODEL")
+    tk.add_argument(
+        "--max-repairs",
+        type=int,
+        default=1,
+        help="times to ask the model to fix invalid JSON (default: 1)",
+    )
     return parser
+
+
+def _add_task_date_options(parser: argparse.ArgumentParser) -> None:
+    """Options shared by `notetaker tasks` and `notetaker agent`."""
+    parser.add_argument(
+        "--lecture-date",
+        default=None,
+        help="date of the lecture, YYYY-MM-DD or 'today', so 'due Friday' "
+        "becomes a real date (default: deadlines stay as phrases)",
+    )
+    parser.add_argument(
+        "--class-days",
+        nargs="+",
+        default=None,
+        metavar="DAY",
+        help="weekdays the course meets (e.g. mon wed) so 'next class' resolves",
+    )
+
+
+def _parse_task_dates(args: argparse.Namespace):
+    """--lecture-date / --class-days -> (date | None, weekday tuple).
+
+    Raises ValueError with a readable message on bad input.
+    """
+    from datetime import date
+
+    from notetaker.dates import parse_weekdays
+
+    lecture_date = None
+    if args.lecture_date:
+        if args.lecture_date.lower() == "today":
+            lecture_date = date.today()
+        else:
+            try:
+                lecture_date = date.fromisoformat(args.lecture_date)
+            except ValueError:
+                raise ValueError(
+                    f"--lecture-date must be YYYY-MM-DD or 'today', "
+                    f"got {args.lecture_date!r}"
+                ) from None
+    class_days = parse_weekdays(args.class_days) if args.class_days else ()
+    return lecture_date, class_days
 
 
 def show_config() -> int:
@@ -1737,6 +1837,89 @@ def run_faithfulness(args: argparse.Namespace, client=None) -> int:
     return 0
 
 
+def _print_tasks_summary(tasks) -> None:
+    """Shared by `tasks` and `agent`: counts plus one line per task."""
+    print(
+        f"Found {len(tasks.tasks)} task(s) in "
+        f"{len(tasks.candidates)} candidate sentence(s)"
+    )
+    for task in tasks.tasks:
+        if task.due_date is not None:
+            due = task.due_date.isoformat() + (
+                f" {task.due_time}" if task.due_time else ""
+            )
+            due += " (?)" if task.date_ambiguous else ""
+        else:
+            due = f'"{task.due_phrase}"' if task.due_phrase else "no deadline"
+        print(f"  - {task.title} ({task.kind}): {due}")
+    for warning in tasks.warnings:
+        print(f"Warning: {warning}")
+
+
+def run_tasks(args: argparse.Namespace, client=None) -> int:
+    """Handle `notetaker tasks`: transcript in, dated to-do list out.
+
+    `client` is only for tests (a FakeLLMClient).
+    """
+    from notetaker.llm import LLMError, make_client
+    from notetaker.tasks import extract_tasks, write_tasks
+    from notetaker.transcribe import Transcript
+
+    if args.batch_size <= 0 or args.max_repairs < 0:
+        print("Error: --batch-size must be > 0 and --max-repairs >= 0")
+        return 1
+    try:
+        lecture_date, class_days = _parse_task_dates(args)
+    except ValueError as error:
+        print(f"Error: {error}")
+        return 1
+    try:
+        transcript = Transcript.load_json(args.transcript)
+    except FileNotFoundError:
+        print(f"Error: no such file: {args.transcript}")
+        return 1
+    except (ValueError, KeyError, TypeError) as error:
+        print(f"Error: {args.transcript} is not a transcript.json ({error})")
+        return 1
+
+    out_dir = args.output_dir or args.transcript.parent
+    title = args.title or f"Tasks: {args.transcript.parent.name or 'lecture'}"
+    try:
+        if args.no_llm:
+            client = None
+            print("Extracting tasks with offline rules (no LLM)")
+        else:
+            if client is None:
+                client = make_client(
+                    get_settings(), provider=args.provider, model=args.model
+                )
+            print(f"Extracting tasks with {client.provider} · {client.model}")
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+    except LLMError as error:
+        print(f"Error: {error}")
+        return 1
+
+    tasks = extract_tasks(
+        transcript,
+        client,
+        title=title,
+        lecture_date=lecture_date,
+        class_days=class_days,
+        use_llm=not args.no_llm,
+        batch_size=args.batch_size,
+        max_repairs=args.max_repairs,
+        on_batch=lambda i, n: print(f"  batch {i + 1}/{n}", flush=True),
+    )
+    paths = write_tasks(tasks, out_dir)
+    _print_tasks_summary(tasks)
+    if tasks.llm_calls:
+        print(f"{tasks.llm_calls} LLM call(s), {tasks.latency_s:.1f}s")
+    print("\n".join(f"Wrote {p}" for p in paths))
+    return 0
+
+
 def run_agent(args: argparse.Namespace, client=None) -> int:
     """Handle `notetaker agent`: the whole pipeline in one command.
 
@@ -1752,12 +1935,16 @@ def run_agent(args: argparse.Namespace, client=None) -> int:
     from notetaker.transcribe import Transcript
 
     try:
+        lecture_date, class_days = _parse_task_dates(args)
         options = PipelineOptions(
             steps=tuple(args.steps or STEP_NAMES),
             chunk_words=args.chunk_words,
             max_repairs=args.max_repairs,
             reduce=not args.no_reduce,
             seed=args.seed,
+            lecture_date=lecture_date,
+            class_days=class_days,
+            task_llm=not args.no_task_llm,
         )
     except ValueError as error:
         print(f"Error: {error}")
@@ -1812,7 +1999,7 @@ def run_agent(args: argparse.Namespace, client=None) -> int:
                 f"({record['seconds']:.1f}s{extra})"
             )
     if result.tasks is not None:
-        print(f"Found {len(result.tasks.candidates)} possible task(s)/deadline(s)")
+        _print_tasks_summary(result.tasks)
     for error in result.errors:
         print(f"Error in {error['step']}: {error['error']}")
     for path in paths:
@@ -1861,6 +2048,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_faithfulness(args)
     if args.command == "agent":
         return run_agent(args)
+    if args.command == "tasks":
+        return run_tasks(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

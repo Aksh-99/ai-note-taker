@@ -21,7 +21,7 @@ LangGraph (free, open source, runs locally) describes a program as a graph:
   early when the transcript is empty.
 
 For a straight line of five steps a for-loop would do. The graph pays off in
-the next steps: Step 4.2 adds a deadline-extraction node, Phase 5 adds
+the next steps: the tasks node now calls an LLM (Step 4.2), Phase 5 adds
 retrieval, and later we can add loops ("faithfulness too low -> regenerate")
 or run independent branches in parallel by adding edges, without rewriting
 the control flow. `notetaker agent --graph` also prints the graph as a
@@ -53,6 +53,7 @@ import operator
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Annotated, Any, TypedDict
 
@@ -74,8 +75,8 @@ from notetaker.transcribe import Transcript
 # constant that nothing should modify.
 STEP_ORDER: tuple[str, ...] = ("notes", "concepts", "flashcards", "quiz", "tasks")
 
-# Stages that call the LLM. "tasks" is an offline keyword scan in Step 4.1
-# (the LLM half of deadline extraction is Step 4.2).
+# Stages that always call the LLM. "tasks" calls it too unless
+# PipelineOptions.task_llm is False, in which case it uses offline rules.
 LLM_STEPS = frozenset({"notes", "concepts", "flashcards", "quiz"})
 
 # Errors a stage may raise that mean "this stage failed, keep going". Any
@@ -129,6 +130,12 @@ class PipelineOptions:
     max_cards: int = 6
     max_questions: int = 4
     seed: int = 0
+    # Tasks stage (Step 4.2): the lecture date that "due Friday" is relative
+    # to, the weekdays the course meets (Monday=0, for "next class"), and
+    # whether an LLM reads the keyword candidates (False: offline rules).
+    lecture_date: date | None = None
+    class_days: tuple[int, ...] = ()
+    task_llm: bool = True
 
     def __post_init__(self) -> None:
         # __post_init__ runs right after the dataclass's generated __init__,
@@ -147,7 +154,8 @@ class PipelineOptions:
 
     @property
     def needs_llm(self) -> bool:
-        return any(s in LLM_STEPS for s in self.steps)
+        uses_llm = set(LLM_STEPS) | ({"tasks"} if self.task_llm else set())
+        return any(s in uses_llm for s in self.steps)
 
 
 @dataclass
@@ -268,7 +276,15 @@ def build_pipeline(
         )
 
     def run_tasks(state: PipelineState) -> TaskList:
-        return extract_tasks(state["transcript"], title=f"Tasks: {state['title']}")
+        return extract_tasks(
+            state["transcript"],
+            client,
+            title=f"Tasks: {state['title']}",
+            lecture_date=options.lecture_date,
+            class_days=options.class_days,
+            use_llm=options.task_llm,
+            max_repairs=options.max_repairs,
+        )
 
     stages: dict[str, Callable[[PipelineState], Any]] = {
         "notes": run_notes,
