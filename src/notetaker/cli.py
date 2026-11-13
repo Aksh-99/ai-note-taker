@@ -48,8 +48,12 @@ Commands so far:
                           --graph prints the graph as a Mermaid diagram
     notetaker tasks outputs/lecture01/transcript.json --lecture-date 2026-11-11
                           find homework, exams and readings with deadlines
-                          resolved to real dates (tasks.md + tasks.json);
+                          resolved to real dates (tasks.md + tasks.json,
+                          plus todo.json and a tasks.ics calendar file);
                           --no-llm uses offline rules instead of an LLM
+    notetaker todo outputs/lecture01/tasks.json --reminder-minutes 120
+                          re-export tasks.json as todo.json + tasks.ics with
+                          other calendar options (--vtodo, --no-reminder)
 """
 
 import argparse
@@ -784,7 +788,8 @@ def build_parser() -> argparse.ArgumentParser:
             "(homework, problem sets, exams, readings), let the configured "
             "LLM decide which are real tasks and copy their deadline words, "
             "then turn those words into calendar dates relative to "
-            "--lecture-date. Writes tasks.md (a to-do list) and tasks.json. "
+            "--lecture-date. Writes tasks.md (a to-do list), tasks.json, "
+            "todo.json and a tasks.ics calendar file. "
             "With --no-llm a rule-based fallback runs offline."
         ),
     )
@@ -822,6 +827,46 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         help="times to ask the model to fix invalid JSON (default: 1)",
+    )
+    td = subcommands.add_parser(
+        "todo",
+        help="export tasks.json as todo.json and a tasks.ics calendar file",
+        description=(
+            "Re-export an existing tasks.json (from `notetaker tasks` or "
+            "`notetaker agent`) without any LLM calls: todo.json is a flat "
+            "to-do list, tasks.ics imports into Google Calendar, Apple "
+            "Calendar, Outlook or Thunderbird. Tasks without a resolved date "
+            "stay in todo.json only."
+        ),
+    )
+    td.add_argument("tasks", type=Path, help="a tasks.json file")
+    td.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="where to write the files (default: next to the input file)",
+    )
+    td.add_argument(
+        "--vtodo",
+        action="store_true",
+        help="write calendar to-dos (VTODO, for task apps) instead of events",
+    )
+    td.add_argument(
+        "--event-minutes",
+        type=int,
+        default=30,
+        help="length of a timed deadline event in minutes (default: 30)",
+    )
+    reminder = td.add_mutually_exclusive_group()
+    reminder.add_argument(
+        "--reminder-minutes",
+        type=int,
+        default=24 * 60,
+        help="alarm this many minutes before the deadline (default: 1440 = 1 day)",
+    )
+    reminder.add_argument(
+        "--no-reminder", action="store_true", help="no alarm in the calendar file"
     )
     return parser
 
@@ -1863,6 +1908,7 @@ def run_tasks(args: argparse.Namespace, client=None) -> int:
     """
     from notetaker.llm import LLMError, make_client
     from notetaker.tasks import extract_tasks, write_tasks
+    from notetaker.todo import write_todo
     from notetaker.transcribe import Transcript
 
     if args.batch_size <= 0 or args.max_repairs < 0:
@@ -1912,10 +1958,42 @@ def run_tasks(args: argparse.Namespace, client=None) -> int:
         max_repairs=args.max_repairs,
         on_batch=lambda i, n: print(f"  batch {i + 1}/{n}", flush=True),
     )
-    paths = write_tasks(tasks, out_dir)
+    paths = write_tasks(tasks, out_dir) + write_todo(tasks, out_dir)
     _print_tasks_summary(tasks)
     if tasks.llm_calls:
         print(f"{tasks.llm_calls} LLM call(s), {tasks.latency_s:.1f}s")
+    print("\n".join(f"Wrote {p}" for p in paths))
+    return 0
+
+
+def run_todo(args: argparse.Namespace) -> int:
+    """Handle `notetaker todo`: tasks.json in, todo.json + tasks.ics out."""
+    from notetaker.tasks import load_tasks
+    from notetaker.todo import IcsOptions, calendar_count, write_todo
+
+    try:
+        options = IcsOptions(
+            component="todo" if args.vtodo else "event",
+            event_minutes=args.event_minutes,
+            reminder_minutes=None if args.no_reminder else args.reminder_minutes,
+        )
+    except ValueError as error:
+        print(f"Error: {error}")
+        return 1
+    try:
+        tasks = load_tasks(args.tasks)
+    except FileNotFoundError:
+        print(f"Error: no such file: {args.tasks}")
+        return 1
+    except ValueError as error:  # pydantic's ValidationError is a ValueError
+        print(f"Error: {args.tasks} is not a tasks.json ({error})")
+        return 1
+    paths = write_todo(tasks, args.output_dir or args.tasks.parent, options)
+    on_calendar = calendar_count(tasks.tasks)
+    print(
+        f"{len(tasks.tasks)} task(s): {on_calendar} on the calendar, "
+        f"{len(tasks.tasks) - on_calendar} without a date (todo.json only)"
+    )
     print("\n".join(f"Wrote {p}" for p in paths))
     return 0
 
@@ -2050,6 +2128,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_agent(args)
     if args.command == "tasks":
         return run_tasks(args)
+    if args.command == "todo":
+        return run_todo(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

@@ -47,6 +47,9 @@ dependencies = [
 dev = [
     "pytest>=8",
     "ruff>=0.5",
+    # Independent iCalendar parser, used only in tests to prove the .ics
+    # files we write by hand (todo.py) can be read by real software.
+    "icalendar>=5.0",
 ]
 
 [project.scripts]

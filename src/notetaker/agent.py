@@ -69,6 +69,7 @@ from notetaker.llm import LLMError
 from notetaker.notes import Notes, NotesError, generate_notes, write_notes
 from notetaker.quiz import Quiz, QuizError, generate_quiz, write_quiz
 from notetaker.tasks import TaskList, extract_tasks, write_tasks
+from notetaker.todo import write_todo
 from notetaker.transcribe import Transcript
 
 # The stages in the order they run. A tuple (not a list) because it is a
@@ -437,6 +438,8 @@ def write_pipeline(
         paths.extend(write_quiz(result.quiz, out_dir))
     if result.tasks is not None:
         paths.extend(write_tasks(result.tasks, out_dir))
+        # Step 4.3: the same tasks as todo.json and a tasks.ics calendar.
+        paths.extend(write_todo(result.tasks, out_dir))
     summary_path = out_dir / "pipeline.json"
     summary_path.write_text(
         json.dumps(result.summary(), indent=2, ensure_ascii=False) + "\n",

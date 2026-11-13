@@ -333,6 +333,10 @@ def test_cli_tasks_with_fake_llm(tmp_path, capsys):
     assert "Problem set 3 (homework): 2026-11-13 17:00" in out
     saved = load_tasks(path.parent / "tasks.json")
     assert saved.title == "Tasks: lec1"
+    # Step 4.3: the to-do export is written alongside.
+    ics = (path.parent / "tasks.ics").read_text(encoding="utf-8")
+    assert "DTSTART:20261113T170000" in ics
+    assert (path.parent / "todo.json").exists()
 
 
 def test_cli_tasks_offline_and_errors(tmp_path, capsys):

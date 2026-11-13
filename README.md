@@ -204,5 +204,19 @@ notetaker tasks outputs/lecture01/transcript.json --lecture-date today --no-llm 
 
 A keyword scan finds the few sentences that might assign work ("problem set 3 is due next Friday at 11:59 pm"), with timestamps. The LLM reads only those sentences, in batches of 8, decides which are real tasks (skipping false alarms like "this result is due to Gauss") and copies the deadline words exactly. It does not do calendar maths: plain code in `src/notetaker/dates.py` turns the phrase into a date relative to `--lecture-date` (weekdays, "tomorrow", "in two weeks", "end of the week", "November 20th", "12/1", "the 15th", times like "5pm" or "midnight", and "next class" with `--class-days`). Each task records which rule fired and is marked `(?)` when the phrase is ambiguous, such as "next Friday". If the model quotes words that are not in the transcript, the keyword scan's own time words are used instead, and if an LLM batch fails, a rule-based fallback keeps those deadlines. Repeated mentions of the same task are merged. Output: `tasks.md` (a checkbox to-do list sorted by due date) and `tasks.json`.
 
+#### Calendar and to-do export
+
+`notetaker tasks` and `notetaker agent` also write two files you can use outside this project:
+
+- `tasks.ics`: an iCalendar file. Open it (or import it) in Google Calendar, Apple Calendar, Outlook or Thunderbird and every dated deadline appears as an event with a reminder one day before. Deadlines with a time ("Friday at 5pm") become 30 minute events at that time; date-only deadlines become all-day events. Each event has a stable id, so importing an updated file moves events instead of duplicating them.
+- `todo.json`: a flat to-do list (title, kind, one `due` field, ambiguity flag, where in the lecture it was said) for scripts and apps. Tasks without a resolved date are kept here.
+
+To re-export with other settings, no LLM needed:
+
+```bash
+notetaker todo outputs/lecture01/tasks.json --reminder-minutes 120   # alarm 2 h before
+notetaker todo outputs/lecture01/tasks.json --vtodo --no-reminder    # to-dos for task apps
+```
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

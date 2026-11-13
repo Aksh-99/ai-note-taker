@@ -260,6 +260,8 @@ def test_write_pipeline_outputs(tmp_path):
         "flashcards.csv",
         "quiz.json",
         "tasks.json",
+        "todo.json",
+        "tasks.ics",
         "pipeline.json",
     } <= names
     summary = json.loads((tmp_path / "pipeline.json").read_text())

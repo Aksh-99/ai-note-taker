@@ -4,6 +4,25 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-12 · Step 4.3: To-do export (JSON + .ics calendar file)
+
+**What I did**
+- Added `src/notetaker/todo.py`, which turns the tasks stage's `tasks.json` into two files other software can use: `todo.json` (a flat to-do list) and `tasks.ics` (an iCalendar file that imports into Google Calendar, Apple Calendar, Outlook and Thunderbird)
+- `todo.json` has one item per task with a single `due` field (`"2026-11-13T17:00"`, `"2026-11-13"` or `null`), an `all_day` flag, the ambiguity flag, the lecturer's own words, where in the lecture it was said (`said_at`, `mentions`), the evidence sentence and a `done: false` field for a to-do app to flip. It has no "generated at" timestamp, so re-running gives byte-identical files
+- `tasks.ics` is written by hand (no new runtime dependency) and follows RFC 5545: CRLF line endings, lines folded at 75 bytes without splitting UTF-8 characters, and escaping of commas, semicolons, backslashes and newlines in text
+- Timed deadlines become 30 minute events starting at the deadline, date-only ones become all-day events (end date exclusive), and each gets a reminder one day before. Undated tasks stay in `todo.json` only. Ambiguous dates get `(?)` in the title and a note in the description, which also holds the details, the lecturer's words, the timestamp, the quote and the date rule
+- Every event has a UID built from a hash of the course title, task title and kind (not the date), so importing a corrected file moves the event instead of duplicating it
+- `notetaker tasks` and `notetaker agent` now write both files automatically. New command `notetaker todo tasks.json` re-exports with options: `--vtodo` (calendar to-dos for task apps instead of events), `--event-minutes`, `--reminder-minutes`, `--no-reminder`
+- Added `icalendar` as a dev-only dependency: the tests parse our output with this independent library to prove real software reads it. 15 new tests in `tests/test_todo.py` plus checks in the existing tasks and agent tests, all offline. `make check` passes (659 tests, lint clean)
+
+**How it works**
+The tasks stage already knows *what* is due and *when*; this step is about getting that into the places a student actually looks. iCalendar is a plain-text format from 1998 that every calendar app still speaks: a `BEGIN:VCALENDAR` block holding `BEGIN:VEVENT` blocks, each a list of `NAME:value` lines such as `DTSTART:20261113T170000`. The fiddly parts are the rules around those lines: a line may be at most 75 bytes, so longer ones are cut and continued on a line starting with a space, and the cut must count bytes, not characters, because an accented letter takes two bytes in UTF-8. Text values escape commas and semicolons because those are separators in the format. The most interesting design choice is the UID: it is a hash (a fixed-length fingerprint) of the course and task title, deliberately leaving out the date, so if a deadline gets corrected and the file is imported again, the calendar recognises the same event and moves it. Times are written as "floating" local time with no time zone, which matches how a lecturer means "5pm". Rather than trusting my own reading of the spec, the tests feed the output to the separate `icalendar` library and check it parses back to the same dates, durations and alarms.
+
+**Next up**
+Step 4.4: Agent tests with recorded fixtures (no live LLM calls in CI).
+
+---
+
 ## 2026-11-11 · Step 4.2: Deadline/assignment extraction with date resolution
 
 **What I did**
