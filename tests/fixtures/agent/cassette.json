@@ -1,0 +1,258 @@
+{
+  "version": 1,
+  "provider": "scripted",
+  "model": "scripted-stand-in",
+  "note": "Seeded from scripted_replies.json (hand-written stand-in replies), not a live model. Re-record with --provider to capture real output.",
+  "interactions": [
+    {
+      "key": "305aed964fb99a17",
+      "request": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a careful teaching assistant who writes study notes from lecture transcripts. Use only what the lecturer actually says; never add facts, formulas or examples that are not in the transcript. Keep technical terms exactly as spoken. Answer with JSON only, no prose before or after it."
+          },
+          {
+            "role": "user",
+            "content": "Below is part 1 of 2 of a lecture transcript. Each paragraph starts with its timestamp [HH:MM:SS].\n\nWrite structured study notes for THIS PART ONLY as a JSON object of this shape:\n\n{\n  \"sections\": [\n    {\n      \"heading\": \"short topic title (3 to 8 words)\",\n      \"start\": \"HH:MM:SS timestamp of the paragraph where this topic begins\",\n      \"summary\": \"one or two sentences on what this topic is about\",\n      \"key_points\": [\"a specific fact, definition or step\", \"...\"]\n    }\n  ]\n}\n\nRules:\n- 1 to 4 sections, in the order the topics are taught.\n- 2 to 6 key points per section, each a complete, self-contained sentence.\n- Copy \"start\" exactly from a timestamp that appears below.\n- Skip small talk, logistics and repeated filler.\n\nTranscript part 1 of 2:\n[00:00:00] Okay, let's get started. Before the math, a couple of announcements. Problem set four is due next Wednesday at 5pm, and it covers everything up to today. Also please read sections 6.1 and 6.2 in the textbook before Monday's class. Last time we talked about linear transformations and how a matrix acts on a vector. Today the big idea is eigenvalues and eigenvectors. An eigenvector of a matrix A is a nonzero vector x such that A x equals lambda x. The number lambda is called the eigenvalue. So the matrix only stretches that direction, it doesn't rotate it.\n[00:00:59] If lambda is two, the vector gets twice as long. If lambda is negative one, it flips. How do we find them? Move everything to one side: A minus lambda I, times x, equals zero. We want a nonzero x, so A minus lambda I has to be singular. And a matrix is singular exactly when its determinant is zero. So the eigenvalues are the roots of the determinant of A minus lambda I. That polynomial is the characteristic polynomial. For a two by two matrix it's a quadratic, so you get at most two eigenvalues."
+          }
+        ],
+        "json_mode": true,
+        "max_tokens": 1500
+      },
+      "response": {
+        "text": "Here are the study notes for part 1:\n```json\n{\"sections\": [{\"heading\": \"Eigenvectors and eigenvalues\", \"start\": \"00:00:00\", \"summary\": \"Defines eigenvectors and eigenvalues of a matrix.\", \"key_points\": [\"An eigenvector of A is a nonzero vector x with A x = lambda x.\"]}]}\n```",
+        "prompt_tokens": null,
+        "completion_tokens": null
+      }
+    },
+    {
+      "key": "ba605faab9a329bd",
+      "request": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a careful teaching assistant who writes study notes from lecture transcripts. Use only what the lecturer actually says; never add facts, formulas or examples that are not in the transcript. Keep technical terms exactly as spoken. Answer with JSON only, no prose before or after it."
+          },
+          {
+            "role": "user",
+            "content": "Below is part 1 of 2 of a lecture transcript. Each paragraph starts with its timestamp [HH:MM:SS].\n\nWrite structured study notes for THIS PART ONLY as a JSON object of this shape:\n\n{\n  \"sections\": [\n    {\n      \"heading\": \"short topic title (3 to 8 words)\",\n      \"start\": \"HH:MM:SS timestamp of the paragraph where this topic begins\",\n      \"summary\": \"one or two sentences on what this topic is about\",\n      \"key_points\": [\"a specific fact, definition or step\", \"...\"]\n    }\n  ]\n}\n\nRules:\n- 1 to 4 sections, in the order the topics are taught.\n- 2 to 6 key points per section, each a complete, self-contained sentence.\n- Copy \"start\" exactly from a timestamp that appears below.\n- Skip small talk, logistics and repeated filler.\n\nTranscript part 1 of 2:\n[00:00:00] Okay, let's get started. Before the math, a couple of announcements. Problem set four is due next Wednesday at 5pm, and it covers everything up to today. Also please read sections 6.1 and 6.2 in the textbook before Monday's class. Last time we talked about linear transformations and how a matrix acts on a vector. Today the big idea is eigenvalues and eigenvectors. An eigenvector of a matrix A is a nonzero vector x such that A x equals lambda x. The number lambda is called the eigenvalue. So the matrix only stretches that direction, it doesn't rotate it.\n[00:00:59] If lambda is two, the vector gets twice as long. If lambda is negative one, it flips. How do we find them? Move everything to one side: A minus lambda I, times x, equals zero. We want a nonzero x, so A minus lambda I has to be singular. And a matrix is singular exactly when its determinant is zero. So the eigenvalues are the roots of the determinant of A minus lambda I. That polynomial is the characteristic polynomial. For a two by two matrix it's a quadratic, so you get at most two eigenvalues."
+          },
+          {
+            "role": "assistant",
+            "content": "Here are the study notes for part 1:\n```json\n{\"sections\": [{\"heading\": \"Eigenvectors and eigenvalues\", \"start\": \"00:00:00\", \"summary\": \"Defines eigenvectors and eigenvalues of a matrix.\", \"key_points\": [\"An eigenvector of A is a nonzero vector x with A x = lambda x.\"]}]}\n```"
+          },
+          {
+            "role": "user",
+            "content": "Your previous reply could not be used: Expecting value: line 1 column 1 (char 0)\nReturn only the corrected JSON object with a \"sections\" list as described."
+          }
+        ],
+        "json_mode": true,
+        "max_tokens": 1500
+      },
+      "response": {
+        "text": "{\"sections\": [{\"heading\": \"Eigenvectors and eigenvalues\", \"start\": \"00:00:00\", \"summary\": \"Defines eigenvectors and eigenvalues, building on linear transformations.\", \"key_points\": [\"An eigenvector of a matrix A is a nonzero vector x such that A x equals lambda x.\", \"The number lambda is called the eigenvalue.\", \"The matrix only stretches the eigenvector's direction; it does not rotate it.\"]}, {\"heading\": \"Finding eigenvalues with the determinant\", \"start\": \"00:00:59\", \"summary\": \"Eigenvalues are the roots of the characteristic polynomial det(A - lambda I).\", \"key_points\": [\"If lambda is two the vector doubles in length; if lambda is negative one it flips.\", \"Rewrite A x = lambda x as (A - lambda I) x = 0.\", \"A nonzero solution x exists only if A - lambda I is singular, i.e. its determinant is zero.\", \"det(A - lambda I) is the characteristic polynomial; for a 2x2 matrix it is quadratic, so there are at most two eigenvalues.\"]}]}",
+        "prompt_tokens": null,
+        "completion_tokens": null
+      }
+    },
+    {
+      "key": "d77ab5aa16b4614d",
+      "request": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a careful teaching assistant who writes study notes from lecture transcripts. Use only what the lecturer actually says; never add facts, formulas or examples that are not in the transcript. Keep technical terms exactly as spoken. Answer with JSON only, no prose before or after it."
+          },
+          {
+            "role": "user",
+            "content": "Below is part 2 of 2 of a lecture transcript. Each paragraph starts with its timestamp [HH:MM:SS].\n\nWrite structured study notes for THIS PART ONLY as a JSON object of this shape:\n\n{\n  \"sections\": [\n    {\n      \"heading\": \"short topic title (3 to 8 words)\",\n      \"start\": \"HH:MM:SS timestamp of the paragraph where this topic begins\",\n      \"summary\": \"one or two sentences on what this topic is about\",\n      \"key_points\": [\"a specific fact, definition or step\", \"...\"]\n    }\n  ]\n}\n\nRules:\n- 1 to 4 sections, in the order the topics are taught.\n- 2 to 6 key points per section, each a complete, self-contained sentence.\n- Copy \"start\" exactly from a timestamp that appears below.\n- Skip small talk, logistics and repeated filler.\n\nTranscript part 2 of 2:\n[00:01:54] Let's do an example. Take A equals two one, one two. A minus lambda I is two minus lambda, one, one, two minus lambda. The determinant is two minus lambda squared minus one, which factors as lambda minus one times lambda minus three. So the eigenvalues are one and three. For lambda equals three, the eigenvector is one one. For lambda equals one, it's one minus one. Notice the two eigenvectors are perpendicular. That always happens for symmetric matrices, and we'll prove it next week.\n[00:02:45] Two quick facts you can check on the example. The trace, the sum of the diagonal, equals the sum of the eigenvalues. Two plus two is four, one plus three is four. And the determinant equals the product of the eigenvalues. Four minus one is three, and one times three is three. By the way, this result about symmetric matrices is due to Cauchy, historically. One more thing: the midterm is on November 24th, in this room, and it covers chapters one through six. Okay, that's it for today. See you Monday."
+          }
+        ],
+        "json_mode": true,
+        "max_tokens": 1500
+      },
+      "response": {
+        "text": "{\"sections\": [{\"heading\": \"Worked example: a symmetric 2x2 matrix\", \"start\": \"00:01:54\", \"summary\": \"Finds the eigenvalues and eigenvectors of A = [[2, 1], [1, 2]].\", \"key_points\": [\"det(A - lambda I) = (2 - lambda)^2 - 1 = (lambda - 1)(lambda - 3).\", \"The eigenvalues are one and three.\", \"For lambda = 3 the eigenvector is (1, 1); for lambda = 1 it is (1, -1).\", \"The two eigenvectors are perpendicular, which always happens for symmetric matrices (proof next week).\"]}, {\"heading\": \"Trace and determinant checks\", \"start\": \"00:02:45\", \"summary\": \"Two facts that check eigenvalues: trace equals their sum, determinant equals their product.\", \"key_points\": [\"The trace (sum of the diagonal) equals the sum of the eigenvalues: 2 + 2 = 1 + 3 = 4.\", \"The determinant equals the product of the eigenvalues: 4 - 1 = 1 x 3 = 3.\"]}]}",
+        "prompt_tokens": null,
+        "completion_tokens": null
+      }
+    },
+    {
+      "key": "59fc4f13667d9856",
+      "request": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a careful teaching assistant who organizes study notes. Use only the information in the notes you are given; never add facts. Answer with JSON only, no prose before or after it."
+          },
+          {
+            "role": "user",
+            "content": "Below are notes on consecutive parts of one lecture, as numbered sections in time order. Each line is: [id] (start time) heading: summary; key points.\n\nGroup the sections into the main topics of the lecture. Return a JSON object of this shape:\n\n{\n  \"overview\": \"two to four sentences on what the whole lecture covers\",\n  \"takeaways\": [\"the most important idea, as one sentence\", \"...\"],\n  \"topics\": [\n    {\n      \"heading\": \"short topic title (3 to 8 words)\",\n      \"summary\": \"one to three sentences on what this topic covers\",\n      \"sections\": [1, 2]\n    }\n  ]\n}\n\nRules:\n- Put every section id in exactly one topic.\n- A topic joins sections about the same idea; these are usually neighbours.\n- Between 1 and 2 topics, listed in the order they are taught.\n- 3 to 6 takeaways, each a complete sentence.\n\nSections:\n[1] (00:00:00) Eigenvectors and eigenvalues: Defines eigenvectors and eigenvalues, building on linear transformations.; An eigenvector of a matrix A is a nonzero vector x such that A x equals lambda x.; The number lambda is called the eigenvalue.; The matrix only stretches the eigenvector's direction; it does not rotate it.\n[2] (00:00:59) Finding eigenvalues with the determinant: Eigenvalues are the roots of the characteristic polynomial det(A - lambda I).; If lambda is two the vector doubles in length; if lambda is negative one it flips.; Rewrite A x = lambda x as (A - lambda I) x = 0.; A nonzero solution x exists only if A - lambda I is singular, i.e. its determinant is zero.\n[3] (00:01:54) Worked example: a symmetric 2x2 matrix: Finds the eigenvalues and eigenvectors of A = [[2, 1], [1, 2]].; det(A - lambda I) = (2 - lambda)^2 - 1 = (lambda - 1)(lambda - 3).; The eigenvalues are one and three.; For lambda = 3 the eigenvector is (1, 1); for lambda = 1 it is (1, -1).\n[4] (00:02:45) Trace and determinant checks: Two facts that check eigenvalues: trace equals their sum, determinant equals their product.; The trace (sum of the diagonal) equals the sum of the eigenvalues: 2 + 2 = 1 + 3 = 4.; The determinant equals the product of the eigenvalues: 4 - 1 = 1 x 3 = 3."
+          }
+        ],
+        "json_mode": true,
+        "max_tokens": 1500
+      },
+      "response": {
+        "text": "{\"overview\": \"The lecture introduces eigenvalues and eigenvectors, shows how to find eigenvalues as roots of the characteristic polynomial, and works through a symmetric 2x2 example.\", \"takeaways\": [\"An eigenvector x of A satisfies A x = lambda x, so A only stretches it.\", \"Eigenvalues are the roots of det(A - lambda I), the characteristic polynomial.\", \"Eigenvectors of a symmetric matrix are perpendicular.\", \"The trace equals the sum of the eigenvalues and the determinant equals their product.\"], \"topics\": [{\"heading\": \"Eigenvalues: definition and how to find them\", \"summary\": \"What eigenvectors and eigenvalues are and why they are the roots of det(A - lambda I).\", \"sections\": [1, 2]}, {\"heading\": \"Worked example and sanity checks\", \"summary\": \"The matrix [[2, 1], [1, 2]] has eigenvalues 1 and 3, which match its trace and determinant.\", \"sections\": [3, 4]}]}",
+        "prompt_tokens": null,
+        "completion_tokens": null
+      }
+    },
+    {
+      "key": "4c2bed339f5d1772",
+      "request": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a careful teaching assistant who builds glossaries from lecture transcripts. Only list terms the lecturer actually says, and define them the way the lecturer does; never add outside knowledge. Answer with JSON only."
+          },
+          {
+            "role": "user",
+            "content": "Below is part 1 of 2 of a lecture transcript.\n\nList the key technical concepts that are introduced, defined or explained in THIS PART, as a JSON object of this shape:\n\n{\n  \"concepts\": [\n    {\n      \"term\": \"the concept name exactly as the lecturer says it\",\n      \"definition\": \"one or two sentences: what it is, in the lecturer's terms\",\n      \"aliases\": [\"other names or abbreviations used for it, if any\"]\n    }\n  ]\n}\n\nRules:\n- 0 to 8 concepts; an empty list is fine if nothing technical is explained.\n- \"term\" is a short noun phrase (at most 8 words) that appears in the text below.\n- Skip people's names, course logistics and everyday words.\n\nTranscript part 1 of 2:\n[00:00:00] Okay, let's get started. Before the math, a couple of announcements. Problem set four is due next Wednesday at 5pm, and it covers everything up to today. Also please read sections 6.1 and 6.2 in the textbook before Monday's class. Last time we talked about linear transformations and how a matrix acts on a vector. Today the big idea is eigenvalues and eigenvectors. An eigenvector of a matrix A is a nonzero vector x such that A x equals lambda x. The number lambda is called the eigenvalue. So the matrix only stretches that direction, it doesn't rotate it.\n[00:00:59] If lambda is two, the vector gets twice as long. If lambda is negative one, it flips. How do we find them? Move everything to one side: A minus lambda I, times x, equals zero. We want a nonzero x, so A minus lambda I has to be singular. And a matrix is singular exactly when its determinant is zero. So the eigenvalues are the roots of the determinant of A minus lambda I. That polynomial is the characteristic polynomial. For a two by two matrix it's a quadratic, so you get at most two eigenvalues."
+          }
+        ],
+        "json_mode": true,
+        "max_tokens": 1000
+      },
+      "response": {
+        "text": "{\"concepts\": [{\"term\": \"eigenvector\", \"definition\": \"A nonzero vector x such that A x equals lambda x; the matrix only stretches its direction, it does not rotate it.\", \"aliases\": []}, {\"term\": \"eigenvalue\", \"definition\": \"The number lambda in A x = lambda x, the factor by which the matrix stretches an eigenvector.\", \"aliases\": [\"lambda\"]}, {\"term\": \"singular\", \"definition\": \"A matrix is singular exactly when its determinant is zero.\", \"aliases\": []}, {\"term\": \"characteristic polynomial\", \"definition\": \"The determinant of A minus lambda I; its roots are the eigenvalues.\", \"aliases\": []}]}",
+        "prompt_tokens": null,
+        "completion_tokens": null
+      }
+    },
+    {
+      "key": "e471cb4b83525556",
+      "request": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a careful teaching assistant who builds glossaries from lecture transcripts. Only list terms the lecturer actually says, and define them the way the lecturer does; never add outside knowledge. Answer with JSON only."
+          },
+          {
+            "role": "user",
+            "content": "Below is part 2 of 2 of a lecture transcript.\n\nList the key technical concepts that are introduced, defined or explained in THIS PART, as a JSON object of this shape:\n\n{\n  \"concepts\": [\n    {\n      \"term\": \"the concept name exactly as the lecturer says it\",\n      \"definition\": \"one or two sentences: what it is, in the lecturer's terms\",\n      \"aliases\": [\"other names or abbreviations used for it, if any\"]\n    }\n  ]\n}\n\nRules:\n- 0 to 8 concepts; an empty list is fine if nothing technical is explained.\n- \"term\" is a short noun phrase (at most 8 words) that appears in the text below.\n- Skip people's names, course logistics and everyday words.\n\nTranscript part 2 of 2:\n[00:01:54] Let's do an example. Take A equals two one, one two. A minus lambda I is two minus lambda, one, one, two minus lambda. The determinant is two minus lambda squared minus one, which factors as lambda minus one times lambda minus three. So the eigenvalues are one and three. For lambda equals three, the eigenvector is one one. For lambda equals one, it's one minus one. Notice the two eigenvectors are perpendicular. That always happens for symmetric matrices, and we'll prove it next week.\n[00:02:45] Two quick facts you can check on the example. The trace, the sum of the diagonal, equals the sum of the eigenvalues. Two plus two is four, one plus three is four. And the determinant equals the product of the eigenvalues. Four minus one is three, and one times three is three. By the way, this result about symmetric matrices is due to Cauchy, historically. One more thing: the midterm is on November 24th, in this room, and it covers chapters one through six. Okay, that's it for today. See you Monday."
+          }
+        ],
+        "json_mode": true,
+        "max_tokens": 1000
+      },
+      "response": {
+        "text": "{\"concepts\": [{\"term\": \"symmetric matrices\", \"definition\": \"Matrices like [[2, 1], [1, 2]] whose eigenvectors are always perpendicular.\", \"aliases\": [\"symmetric matrix\"]}, {\"term\": \"trace\", \"definition\": \"The sum of the diagonal entries; it equals the sum of the eigenvalues.\", \"aliases\": []}]}",
+        "prompt_tokens": null,
+        "completion_tokens": null
+      }
+    },
+    {
+      "key": "bc38bb4025aecc99",
+      "request": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a careful teaching assistant who writes study flashcards from lecture transcripts. Every answer must come from what the lecturer says; never add outside knowledge. Answer with JSON only."
+          },
+          {
+            "role": "user",
+            "content": "Below is part 1 of 2 of a lecture transcript.\n\nWrite flashcards that test the important ideas of THIS PART, as a JSON object of this shape:\n\n{\n  \"cards\": [\n    {\"question\": \"a specific question\", \"answer\": \"a short answer\"}\n  ]\n}\n\nRules:\n- 0 to 6 cards; an empty list is fine if the part has no content worth testing (for example course logistics).\n- One fact per card. The question must make sense on its own, without the transcript (name the concept, do not say \"the lecturer\" or \"this part\").\n- Questions at most 40 words, answers at most 60 words, using the lecturer's own wording where possible.\n- Mix \"what is\", \"why\" and \"how\" questions; avoid yes/no questions.\n\nTranscript part 1 of 2:\n[00:00:00] Okay, let's get started. Before the math, a couple of announcements. Problem set four is due next Wednesday at 5pm, and it covers everything up to today. Also please read sections 6.1 and 6.2 in the textbook before Monday's class. Last time we talked about linear transformations and how a matrix acts on a vector. Today the big idea is eigenvalues and eigenvectors. An eigenvector of a matrix A is a nonzero vector x such that A x equals lambda x. The number lambda is called the eigenvalue. So the matrix only stretches that direction, it doesn't rotate it.\n[00:00:59] If lambda is two, the vector gets twice as long. If lambda is negative one, it flips. How do we find them? Move everything to one side: A minus lambda I, times x, equals zero. We want a nonzero x, so A minus lambda I has to be singular. And a matrix is singular exactly when its determinant is zero. So the eigenvalues are the roots of the determinant of A minus lambda I. That polynomial is the characteristic polynomial. For a two by two matrix it's a quadratic, so you get at most two eigenvalues."
+          }
+        ],
+        "json_mode": true,
+        "max_tokens": 1200
+      },
+      "response": {
+        "text": "{\"cards\": [{\"question\": \"What is an eigenvector of a matrix A?\", \"answer\": \"A nonzero vector x such that A x equals lambda x.\"}, {\"question\": \"Why must A - lambda I be singular when lambda is an eigenvalue?\", \"answer\": \"Because (A - lambda I) x = 0 must have a nonzero solution x.\"}, {\"question\": \"How do you find the eigenvalues of a matrix A?\", \"answer\": \"Find the roots of the determinant of A minus lambda I, the characteristic polynomial.\"}]}",
+        "prompt_tokens": null,
+        "completion_tokens": null
+      }
+    },
+    {
+      "key": "10911af0a64dd017",
+      "request": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a careful teaching assistant who writes study flashcards from lecture transcripts. Every answer must come from what the lecturer says; never add outside knowledge. Answer with JSON only."
+          },
+          {
+            "role": "user",
+            "content": "Below is part 2 of 2 of a lecture transcript.\n\nWrite flashcards that test the important ideas of THIS PART, as a JSON object of this shape:\n\n{\n  \"cards\": [\n    {\"question\": \"a specific question\", \"answer\": \"a short answer\"}\n  ]\n}\n\nRules:\n- 0 to 6 cards; an empty list is fine if the part has no content worth testing (for example course logistics).\n- One fact per card. The question must make sense on its own, without the transcript (name the concept, do not say \"the lecturer\" or \"this part\").\n- Questions at most 40 words, answers at most 60 words, using the lecturer's own wording where possible.\n- Mix \"what is\", \"why\" and \"how\" questions; avoid yes/no questions.\n\nTranscript part 2 of 2:\n[00:01:54] Let's do an example. Take A equals two one, one two. A minus lambda I is two minus lambda, one, one, two minus lambda. The determinant is two minus lambda squared minus one, which factors as lambda minus one times lambda minus three. So the eigenvalues are one and three. For lambda equals three, the eigenvector is one one. For lambda equals one, it's one minus one. Notice the two eigenvectors are perpendicular. That always happens for symmetric matrices, and we'll prove it next week.\n[00:02:45] Two quick facts you can check on the example. The trace, the sum of the diagonal, equals the sum of the eigenvalues. Two plus two is four, one plus three is four. And the determinant equals the product of the eigenvalues. Four minus one is three, and one times three is three. By the way, this result about symmetric matrices is due to Cauchy, historically. One more thing: the midterm is on November 24th, in this room, and it covers chapters one through six. Okay, that's it for today. See you Monday."
+          }
+        ],
+        "json_mode": true,
+        "max_tokens": 1200
+      },
+      "response": {
+        "text": "{\"cards\": [{\"question\": \"What are the eigenvalues of the matrix [[2, 1], [1, 2]]?\", \"answer\": \"One and three.\"}, {\"question\": \"How are the eigenvalues of a matrix related to its trace?\", \"answer\": \"The trace, the sum of the diagonal, equals the sum of the eigenvalues.\"}, {\"question\": \"How are the eigenvalues of a matrix related to its determinant?\", \"answer\": \"The determinant equals the product of the eigenvalues.\"}]}",
+        "prompt_tokens": null,
+        "completion_tokens": null
+      }
+    },
+    {
+      "key": "f311643294069cde",
+      "request": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a careful teaching assistant who writes multiple-choice quiz questions from lecture transcripts. The correct answer must come from what the lecturer says; never add outside knowledge. Answer with JSON only."
+          },
+          {
+            "role": "user",
+            "content": "Below is part 1 of 2 of a lecture transcript.\n\nWrite multiple-choice questions that test understanding of THIS PART, as a JSON object of this shape:\n\n{\n  \"questions\": [\n    {\n      \"question\": \"a specific question\",\n      \"correct\": \"the correct answer\",\n      \"distractors\": [\"wrong answer 1\", \"wrong answer 2\", \"wrong answer 3\"],\n      \"explanation\": \"one sentence on why the correct answer is right\"\n    }\n  ]\n}\n\nRules:\n- 0 to 4 questions; an empty list is fine if the part has no content worth testing (for example course logistics).\n- Exactly 3 distractors per question. Distractors must be plausible (common misconceptions, related but different concepts) but clearly wrong given the lecture, and about as long as the correct answer.\n- No \"all of the above\", \"none of the above\" or \"both\" options, and no two options that mean the same thing.\n- The question must make sense on its own, without the transcript (name the concept, do not say \"the lecturer\" or \"this part\").\n- Questions at most 50 words, each option at most 30 words. Use the lecturer's own wording for the correct answer where possible.\n\nTranscript part 1 of 2:\n[00:00:00] Okay, let's get started. Before the math, a couple of announcements. Problem set four is due next Wednesday at 5pm, and it covers everything up to today. Also please read sections 6.1 and 6.2 in the textbook before Monday's class. Last time we talked about linear transformations and how a matrix acts on a vector. Today the big idea is eigenvalues and eigenvectors. An eigenvector of a matrix A is a nonzero vector x such that A x equals lambda x. The number lambda is called the eigenvalue. So the matrix only stretches that direction, it doesn't rotate it.\n[00:00:59] If lambda is two, the vector gets twice as long. If lambda is negative one, it flips. How do we find them? Move everything to one side: A minus lambda I, times x, equals zero. We want a nonzero x, so A minus lambda I has to be singular. And a matrix is singular exactly when its determinant is zero. So the eigenvalues are the roots of the determinant of A minus lambda I. That polynomial is the characteristic polynomial. For a two by two matrix it's a quadratic, so you get at most two eigenvalues."
+          }
+        ],
+        "json_mode": true,
+        "max_tokens": 1500
+      },
+      "response": {
+        "text": "{\"questions\": [{\"question\": \"Which condition on A - lambda I gives the eigenvalues of A?\", \"correct\": \"Its determinant is zero\", \"distractors\": [\"Its trace is zero\", \"It equals the identity matrix\", \"Its diagonal entries are all zero\"], \"explanation\": \"A nonzero x with (A - lambda I) x = 0 exists only when A - lambda I is singular, i.e. has determinant zero.\"}, {\"question\": \"What does a matrix do to one of its eigenvectors?\", \"correct\": \"It only stretches it, without rotating it\", \"distractors\": [\"It rotates it by ninety degrees\", \"It maps it to the zero vector\", \"It reflects it across the x axis\"], \"explanation\": \"A x = lambda x, so the direction of x is kept and only its length is scaled by lambda.\"}]}",
+        "prompt_tokens": null,
+        "completion_tokens": null
+      }
+    },
+    {
+      "key": "d9542aad42701aab",
+      "request": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a careful teaching assistant who writes multiple-choice quiz questions from lecture transcripts. The correct answer must come from what the lecturer says; never add outside knowledge. Answer with JSON only."
+          },
+          {
+            "role": "user",
+            "content": "Below is part 2 of 2 of a lecture transcript.\n\nWrite multiple-choice questions that test understanding of THIS PART, as a JSON object of this shape:\n\n{\n  \"questions\": [\n    {\n      \"question\": \"a specific question\",\n      \"correct\": \"the correct answer\",\n      \"distractors\": [\"wrong answer 1\", \"wrong answer 2\", \"wrong answer 3\"],\n      \"explanation\": \"one sentence on why the correct answer is right\"\n    }\n  ]\n}\n\nRules:\n- 0 to 4 questions; an empty list is fine if the part has no content worth testing (for example course logistics).\n- Exactly 3 distractors per question. Distractors must be plausible (common misconceptions, related but different concepts) but clearly wrong given the lecture, and about as long as the correct answer.\n- No \"all of the above\", \"none of the above\" or \"both\" options, and no two options that mean the same thing.\n- The question must make sense on its own, without the transcript (name the concept, do not say \"the lecturer\" or \"this part\").\n- Questions at most 50 words, each option at most 30 words. Use the lecturer's own wording for the correct answer where possible.\n\nTranscript part 2 of 2:\n[00:01:54] Let's do an example. Take A equals two one, one two. A minus lambda I is two minus lambda, one, one, two minus lambda. The determinant is two minus lambda squared minus one, which factors as lambda minus one times lambda minus three. So the eigenvalues are one and three. For lambda equals three, the eigenvector is one one. For lambda equals one, it's one minus one. Notice the two eigenvectors are perpendicular. That always happens for symmetric matrices, and we'll prove it next week.\n[00:02:45] Two quick facts you can check on the example. The trace, the sum of the diagonal, equals the sum of the eigenvalues. Two plus two is four, one plus three is four. And the determinant equals the product of the eigenvalues. Four minus one is three, and one times three is three. By the way, this result about symmetric matrices is due to Cauchy, historically. One more thing: the midterm is on November 24th, in this room, and it covers chapters one through six. Okay, that's it for today. See you Monday."
+          }
+        ],
+        "json_mode": true,
+        "max_tokens": 1500
+      },
+      "response": {
+        "text": "{\"questions\": [{\"question\": \"The matrix [[2, 1], [1, 2]] has eigenvalues 1 and 3. What is the product of its eigenvalues equal to?\", \"correct\": \"Its determinant, 3\", \"distractors\": [\"Its trace, 4\", \"The sum of its entries, 6\", \"Its largest entry, 2\"], \"explanation\": \"The determinant equals the product of the eigenvalues: 4 - 1 = 1 x 3 = 3.\"}]}",
+        "prompt_tokens": null,
+        "completion_tokens": null
+      }
+    },
+    {
+      "key": "94acfa635a957314",
+      "request": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a careful teaching assistant who extracts student to-dos (homework, exams, readings, projects and their deadlines) from short lecture excerpts. Answer with JSON only."
+          },
+          {
+            "role": "user",
+            "content": "Below are numbered excerpts from a lecture. A keyword scan flagged each one because it might assign work to the students, but many are false alarms.\n\nFor every excerpt that really gives students something to do or prepare for (homework, problem set, exam, quiz, reading, project, lab report), return one task. Skip false alarms such as \"this result is due to Gauss\", past events (\"last week's exam\"), or machine-learning \"test sets\".\n\nReturn a JSON object: {\"tasks\": [...]}. Each task has:\n- \"excerpt\": the excerpt number it comes from\n- \"title\": a short name, at most 8 words (e.g. \"Problem set 3\")\n- \"kind\": one of homework, exam, reading, project, other\n- \"details\": extra specifics in at most 15 words, or \"\"\n- \"due_phrase\": the deadline words copied exactly from the excerpt (e.g. \"Friday at 5pm\", \"next Tuesday\"), or null if no deadline is said\n\nDo NOT convert the deadline to a date; copy the words. If no excerpt is a real task, return {\"tasks\": []}.\n\nExcerpts:\n1. [00:00:07] Before the math, a couple of announcements. Problem set four is due next Wednesday at 5pm, and it covers everything up to today. Also please read sections 6.1 and 6.2 in the textbook before Monday's class.\n2. [00:00:16] Problem set four is due next Wednesday at 5pm, and it covers everything up to today. Also please read sections 6.1 and 6.2 in the textbook before Monday's class. Last time we talked about linear transformations and how a matrix acts on a vector.\n3. [00:03:11] Four minus one is three, and one times three is three. By the way, this result about symmetric matrices is due to Cauchy, historically. One more thing: the midterm is on November 24th, in this room, and it covers chapters one through six.\n4. [00:03:19] By the way, this result about symmetric matrices is due to Cauchy, historically. One more thing: the midterm is on November 24th, in this room, and it covers chapters one through six. Okay, that's it for today."
+          }
+        ],
+        "json_mode": true,
+        "max_tokens": 1024
+      },
+      "response": {
+        "text": "{\"tasks\": [{\"excerpt\": 1, \"title\": \"Problem set 4\", \"kind\": \"homework\", \"details\": \"Covers everything up to today's lecture\", \"due_phrase\": \"next Wednesday at 5pm\"}, {\"excerpt\": 1, \"title\": \"Read sections 6.1 and 6.2\", \"kind\": \"reading\", \"details\": \"In the textbook\", \"due_phrase\": \"before Monday's class\"}, {\"excerpt\": 2, \"title\": \"Problem set 4\", \"kind\": \"homework\", \"details\": \"\", \"due_phrase\": \"next Wednesday at 5pm\"}, {\"excerpt\": 4, \"title\": \"Midterm\", \"kind\": \"exam\", \"details\": \"In this room, covers chapters one through six\", \"due_phrase\": \"November 24th\"}]}",
+        "prompt_tokens": null,
+        "completion_tokens": null
+      }
+    }
+  ]
+}

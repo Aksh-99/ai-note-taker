@@ -4,6 +4,27 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-13 · Step 4.4: Agent tests with recorded fixtures (no live LLM calls in CI)
+
+**What I did**
+- Added `src/notetaker/cassette.py`, a record/replay layer for LLM calls. `RecordingClient` wraps any real client, passes requests through unchanged and saves every (request, reply) pair to a JSON "cassette". `ReplayClient` answers requests from that file with no network, no key and no model
+- Each request is matched by a SHA-256 fingerprint of its messages, JSON mode and token limit (not the model name, so a Groq recording replays on an Ollama machine). Identical repeated requests replay in recorded order. If a prompt changes, replay stops with a `CassetteMiss` that names the closest recording and prints where the text first differs. Hand-edited prompts in the file are detected; hand-edited replies are allowed, for testing edge cases
+- New `notetaker agent` flags: `--record-llm CASSETTE` and `--replay-llm CASSETTE` (mutually exclusive). Replay needs no `.env`, so anyone who clones the repo can run the full agent offline (README has the one-line demo). A recording is saved even if the run crashes halfway, and replay warns if recorded calls were never used
+- Added a fixture set in `tests/fixtures/agent/`: a 3.5 minute eigenvalues lecture with a problem set, a reading, a midterm and a "due to Cauchy" false alarm; `options.json` (small chunks so map-reduce runs); the 11-call `cassette.json`; and `expected/`, the 14 files the run must produce
+- `tests/test_agent_fixtures.py` (15 tests) replays the cassette through the real pipeline and compares every output byte for byte with `expected/`, then checks the important behaviour directly: the repair loop fired, map-reduce merged 4 sections into 2 topics, deadlines resolved to the right dates, the false alarm was rejected, the duplicate task merged, and `tasks.ics` parses with the `icalendar` library. It also covers stale cassettes, broken files and a CLI record-then-replay round trip. Refresh golden files with `UPDATE_GOLDEN=1 pytest tests/test_agent_fixtures.py`
+- `tests/conftest.py` now has an autouse guard that replaces the one function that sends HTTP requests to LLM APIs with one that fails the test. "CI never calls a live LLM" is now enforced, not just promised
+- `scripts/record_agent_fixture.py` and `make record-fixtures` re-record the cassette, from a real free model (`--provider ollama|groq|huggingface`) or offline from hand-written stand-in replies (`--scripted`)
+- Honest note: this sandbox could not reach Ollama or Hugging Face to download a model, so the committed cassette is seeded from `scripted_replies.json` and says so in its `provider` and `note` fields. One stand-in reply imitates a real small-model habit (prose before the JSON) to cover the repair path. Re-recording with Ollama is a one-liner, documented in `tests/fixtures/agent/README.md`
+- Added `.gitattributes` so git never rewrites the CRLF line endings that `tasks.ics` needs. 32 new tests, `make check` passes (691 tests, lint clean)
+
+**How it works**
+Testing code that calls an LLM has a tension: real calls are slow, need a key, burn free-tier quota and give a different answer every run, while hand-written fakes only contain the tidy JSON I imagined. Record/replay sits in between, the same idea as the VCR library in Ruby or vcrpy in Python. You run the pipeline once against a real model with a recorder in the middle that writes down every question and answer, then tests replay those answers forever. The lookup key is a hash of the request: hashing turns any text into a short fixed-length fingerprint where equal inputs give equal outputs and any change gives a different output, which is exactly what you want for "is this the same prompt as before?". That means editing a prompt automatically breaks replay with a clear message, so stale test data can never silently pass. On top of the cassette sit golden-file tests (also called snapshot tests): the expected outputs are committed, and any change in behaviour shows up as a readable `git diff` to approve or reject. Two sources of run-to-run noise had to be removed first, the timings in `pipeline.json` and the DTSTAMP "file written at" field that the iCalendar spec requires. The fixture also surfaced a real quirk worth fixing later: a task's evidence sentence is the flagged sentence of the excerpt the model cites, so the reading task currently quotes the problem set sentence next to it.
+
+**Next up**
+Step 5.1: Embeddings with sentence-transformers, store in FAISS/Chroma with lecture + timestamp metadata.
+
+---
+
 ## 2026-11-12 · Step 4.3: To-do export (JSON + .ics calendar file)
 
 **What I did**

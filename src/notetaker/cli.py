@@ -45,7 +45,8 @@ Commands so far:
     notetaker agent outputs/lecture01/transcript.json
                           run the whole pipeline as a LangGraph graph (notes,
                           concepts, flashcards, quiz, tasks) in one command;
-                          --graph prints the graph as a Mermaid diagram
+                          --graph prints the graph as a Mermaid diagram;
+                          --record-llm / --replay-llm save or reuse LLM replies
     notetaker tasks outputs/lecture01/transcript.json --lecture-date 2026-11-11
                           find homework, exams and readings with deadlines
                           resolved to real dates (tasks.md + tasks.json,
@@ -778,6 +779,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--graph",
         action="store_true",
         help="print the pipeline graph as Mermaid text and exit (no LLM calls)",
+    )
+    # Record/replay (Step 4.4). A "mutually exclusive group" makes argparse
+    # reject giving both flags at once, with a clear error message.
+    cassette = ag.add_mutually_exclusive_group()
+    cassette.add_argument(
+        "--record-llm",
+        type=Path,
+        default=None,
+        metavar="CASSETTE",
+        help="save every LLM request and reply to this JSON file (a cassette)",
+    )
+    cassette.add_argument(
+        "--replay-llm",
+        type=Path,
+        default=None,
+        metavar="CASSETTE",
+        help="answer LLM calls from a recorded cassette: offline, no API key, "
+        "same output every run",
     )
 
     tk = subcommands.add_parser(
@@ -2009,6 +2028,12 @@ def run_agent(args: argparse.Namespace, client=None) -> int:
         run_pipeline,
         write_pipeline,
     )
+    from notetaker.cassette import (
+        CassetteFormatError,
+        CassetteMiss,
+        RecordingClient,
+        ReplayClient,
+    )
     from notetaker.llm import LLMError, make_client
     from notetaker.transcribe import Transcript
 
@@ -2044,11 +2069,24 @@ def run_agent(args: argparse.Namespace, client=None) -> int:
 
     out_dir = args.output_dir or args.transcript.parent
     title = args.title or (args.transcript.parent.name or "lecture")
+    recorder = replayer = None
     try:
-        if client is None and options.needs_llm:
+        if args.replay_llm is not None and options.needs_llm:
+            # Replay needs no provider settings at all: the cassette holds
+            # every reply, so this works on a fresh clone with no .env.
+            replayer = client = ReplayClient(args.replay_llm)
+        elif client is None and options.needs_llm:
             client = make_client(
                 get_settings(), provider=args.provider, model=args.model
             )
+        if args.record_llm is not None and client is not None:
+            recorder = client = RecordingClient(client, args.record_llm)
+    except FileNotFoundError:
+        print(f"Error: no such cassette: {args.replay_llm}")
+        return 1
+    except CassetteFormatError as error:
+        print(f"Error: {error}")
+        return 1
     except ValidationError as error:
         print(f"Invalid configuration:\n{error}")
         return 1
@@ -2066,7 +2104,24 @@ def run_agent(args: argparse.Namespace, client=None) -> int:
     def progress(step: str) -> None:
         print(f"  [{step}]", flush=True)
 
-    result = run_pipeline(transcript, client, options, title=title, on_step=progress)
+    try:
+        result = run_pipeline(
+            transcript, client, options, title=title, on_step=progress
+        )
+    except CassetteMiss as error:
+        print(f"Error: {error}")
+        return 1
+    finally:
+        # `finally` runs whether or not the pipeline raised, so a recording
+        # that stopped halfway is still saved for inspection.
+        if recorder is not None:
+            print(f"Recorded {len(recorder.cassette.interactions)} LLM call(s)")
+            print(f"Wrote {recorder.save()}")
+    if replayer is not None and replayer.unused():
+        print(
+            f"Warning: {len(replayer.unused())} recorded LLM call(s) were never "
+            "replayed; the cassette may be out of date"
+        )
     paths = write_pipeline(result, out_dir)
     for record in result.log:
         if record["step"] in options.steps:

@@ -1,0 +1,45 @@
+{
+  "title": "18.06 Lecture 21: Eigenvalues",
+  "steps": [
+    "notes",
+    "concepts",
+    "flashcards",
+    "quiz",
+    "tasks"
+  ],
+  "provider": "replay:scripted",
+  "model": "scripted-stand-in",
+  "llm_calls": 11,
+  "log": [
+    {
+      "step": "check_transcript",
+      "status": "ok"
+    },
+    {
+      "step": "notes",
+      "status": "ok",
+      "llm_calls": 4
+    },
+    {
+      "step": "concepts",
+      "status": "ok",
+      "llm_calls": 2
+    },
+    {
+      "step": "flashcards",
+      "status": "ok",
+      "llm_calls": 2
+    },
+    {
+      "step": "quiz",
+      "status": "ok",
+      "llm_calls": 2
+    },
+    {
+      "step": "tasks",
+      "status": "ok",
+      "llm_calls": 1
+    }
+  ],
+  "errors": []
+}

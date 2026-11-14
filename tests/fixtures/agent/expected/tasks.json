@@ -1,0 +1,117 @@
+{
+  "title": "Tasks: 18.06 Lecture 21: Eigenvalues",
+  "method": "llm",
+  "reference_date": "2026-11-13",
+  "candidates": [
+    {
+      "text": "Problem set four is due next Wednesday at 5pm, and it covers everything up to today.",
+      "context": "Before the math, a couple of announcements. Problem set four is due next Wednesday at 5pm, and it covers everything up to today. Also please read sections 6.1 and 6.2 in the textbook before Monday's class.",
+      "start": 7.28,
+      "cues": [
+        "due",
+        "problem set"
+      ],
+      "time_phrases": [
+        "Wednesday",
+        "5pm",
+        "today"
+      ],
+      "score": 3.0
+    },
+    {
+      "text": "Also please read sections 6.1 and 6.2 in the textbook before Monday's class.",
+      "context": "Problem set four is due next Wednesday at 5pm, and it covers everything up to today. Also please read sections 6.1 and 6.2 in the textbook before Monday's class. Last time we talked about linear transformations and how a matrix acts on a vector.",
+      "start": 16.46,
+      "cues": [
+        "reading"
+      ],
+      "time_phrases": [
+        "Monday"
+      ],
+      "score": 2.0
+    },
+    {
+      "text": "By the way, this result about symmetric matrices is due to Cauchy, historically.",
+      "context": "Four minus one is three, and one times three is three. By the way, this result about symmetric matrices is due to Cauchy, historically. One more thing: the midterm is on November 24th, in this room, and it covers chapters one through six.",
+      "start": 191.26,
+      "cues": [
+        "due"
+      ],
+      "time_phrases": [],
+      "score": 1.0
+    },
+    {
+      "text": "One more thing: the midterm is on November 24th, in this room, and it covers chapters one through six.",
+      "context": "By the way, this result about symmetric matrices is due to Cauchy, historically. One more thing: the midterm is on November 24th, in this room, and it covers chapters one through six. Okay, that's it for today.",
+      "start": 199.3,
+      "cues": [
+        "exam"
+      ],
+      "time_phrases": [
+        "November"
+      ],
+      "score": 2.0
+    }
+  ],
+  "tasks": [
+    {
+      "title": "Read sections 6.1 and 6.2",
+      "kind": "reading",
+      "details": "In the textbook",
+      "due_phrase": "before Monday's class",
+      "due_date": "2026-11-16",
+      "due_time": null,
+      "date_rule": "next occurrence of weekday",
+      "date_ambiguous": false,
+      "start": 7.28,
+      "mentions": [
+        7.28
+      ],
+      "evidence": "Problem set four is due next Wednesday at 5pm, and it covers everything up to today.",
+      "source": "llm"
+    },
+    {
+      "title": "Problem set 4",
+      "kind": "homework",
+      "details": "Covers everything up to today's lecture",
+      "due_phrase": "next Wednesday at 5pm",
+      "due_date": "2026-11-18",
+      "due_time": "17:00",
+      "date_rule": "next <weekday> = that day in the following week",
+      "date_ambiguous": true,
+      "start": 7.28,
+      "mentions": [
+        7.28,
+        16.46
+      ],
+      "evidence": "Problem set four is due next Wednesday at 5pm, and it covers everything up to today.",
+      "source": "llm"
+    },
+    {
+      "title": "Midterm",
+      "kind": "exam",
+      "details": "In this room, covers chapters one through six",
+      "due_phrase": "November 24th",
+      "due_date": "2026-11-24",
+      "due_time": null,
+      "date_rule": "month and day",
+      "date_ambiguous": false,
+      "start": 199.3,
+      "mentions": [
+        199.3
+      ],
+      "evidence": "One more thing: the midterm is on November 24th, in this room, and it covers chapters one through six.",
+      "source": "llm"
+    }
+  ],
+  "rejected": [
+    3
+  ],
+  "warnings": [],
+  "model": "scripted-stand-in",
+  "provider": "replay:scripted",
+  "llm_calls": 1,
+  "prompt_tokens": 0,
+  "completion_tokens": 0,
+  "latency_s": 0.0
+}

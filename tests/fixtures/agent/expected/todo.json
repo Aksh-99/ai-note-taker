@@ -1,0 +1,63 @@
+{
+  "format_version": 1,
+  "title": "Tasks: 18.06 Lecture 21: Eigenvalues",
+  "lecture_date": "2026-11-13",
+  "items": [
+    {
+      "id": "5b9026edf4c8ebc4@notetaker",
+      "title": "Read sections 6.1 and 6.2",
+      "kind": "reading",
+      "details": "In the textbook",
+      "due": "2026-11-16",
+      "all_day": true,
+      "due_phrase": "before Monday's class",
+      "ambiguous": false,
+      "done": false,
+      "said_at": "00:00:07",
+      "said_at_seconds": 7.28,
+      "mentions": [
+        7.28
+      ],
+      "evidence": "Problem set four is due next Wednesday at 5pm, and it covers everything up to today.",
+      "source": "llm"
+    },
+    {
+      "id": "4db9c62b6062faaf@notetaker",
+      "title": "Problem set 4",
+      "kind": "homework",
+      "details": "Covers everything up to today's lecture",
+      "due": "2026-11-18T17:00",
+      "all_day": false,
+      "due_phrase": "next Wednesday at 5pm",
+      "ambiguous": true,
+      "done": false,
+      "said_at": "00:00:07",
+      "said_at_seconds": 7.28,
+      "mentions": [
+        7.28,
+        16.46
+      ],
+      "evidence": "Problem set four is due next Wednesday at 5pm, and it covers everything up to today.",
+      "source": "llm"
+    },
+    {
+      "id": "003c19cc8a694d84@notetaker",
+      "title": "Midterm",
+      "kind": "exam",
+      "details": "In this room, covers chapters one through six",
+      "due": "2026-11-24",
+      "all_day": true,
+      "due_phrase": "November 24th",
+      "ambiguous": false,
+      "done": false,
+      "said_at": "00:03:19",
+      "said_at_seconds": 199.3,
+      "mentions": [
+        199.3
+      ],
+      "evidence": "One more thing: the midterm is on November 24th, in this room, and it covers chapters one through six.",
+      "source": "llm"
+    }
+  ],
+  "undated": 0
+}

@@ -1,0 +1,137 @@
+{
+  "title": "Quiz: 18.06 Lecture 21: Eigenvalues",
+  "questions": [
+    {
+      "question": "Which term matches this definition: A nonzero vector x such that A x equals lambda x; the matrix only stretches its direction, it does not rotate it.",
+      "options": [
+        "eigenvector",
+        "characteristic polynomial",
+        "singular",
+        "eigenvalue"
+      ],
+      "answer": 0,
+      "explanation": "eigenvector: A nonzero vector x such that A x equals lambda x; the matrix only stretches its direction, it does not rotate it.",
+      "source_time": 0.0,
+      "origin": "concept",
+      "chunk": null,
+      "support": 1.0
+    },
+    {
+      "question": "Which term matches this definition: The number ____ in A x = ____ x, the factor by which the matrix stretches an eigenvector.",
+      "options": [
+        "singular",
+        "characteristic polynomial",
+        "eigenvalue",
+        "eigenvector"
+      ],
+      "answer": 2,
+      "explanation": "eigenvalue: The number lambda in A x = lambda x, the factor by which the matrix stretches an eigenvector.",
+      "source_time": 0.0,
+      "origin": "concept",
+      "chunk": null,
+      "support": 1.0
+    },
+    {
+      "question": "Which condition on A - lambda I gives the eigenvalues of A?",
+      "options": [
+        "Its trace is zero",
+        "Its determinant is zero",
+        "It equals the identity matrix",
+        "Its diagonal entries are all zero"
+      ],
+      "answer": 1,
+      "explanation": "A nonzero x with (A - lambda I) x = 0 exists only when A - lambda I is singular, i.e. has determinant zero.",
+      "source_time": 59.32,
+      "origin": "llm",
+      "chunk": 0,
+      "support": 1.0
+    },
+    {
+      "question": "Which term matches this definition: A matrix is ____ exactly when its determinant is zero.",
+      "options": [
+        "eigenvector",
+        "singular",
+        "symmetric matrices",
+        "characteristic polynomial"
+      ],
+      "answer": 1,
+      "explanation": "singular: A matrix is singular exactly when its determinant is zero.",
+      "source_time": 59.32,
+      "origin": "concept",
+      "chunk": null,
+      "support": 1.0
+    },
+    {
+      "question": "Which term matches this definition: The determinant of A minus lambda I; its roots are the eigenvalues.",
+      "options": [
+        "symmetric matrices",
+        "eigenvector",
+        "singular",
+        "characteristic polynomial"
+      ],
+      "answer": 3,
+      "explanation": "characteristic polynomial: The determinant of A minus lambda I; its roots are the eigenvalues.",
+      "source_time": 59.32,
+      "origin": "concept",
+      "chunk": null,
+      "support": 1.0
+    },
+    {
+      "question": "Which term matches this definition: Matrices like [[2, 1], [1, 2]] whose eigenvectors are always perpendicular.",
+      "options": [
+        "singular",
+        "trace",
+        "characteristic polynomial",
+        "symmetric matrices"
+      ],
+      "answer": 3,
+      "explanation": "symmetric matrices: Matrices like [[2, 1], [1, 2]] whose eigenvectors are always perpendicular.",
+      "source_time": 114.4,
+      "origin": "concept",
+      "chunk": null,
+      "support": 1.0
+    },
+    {
+      "question": "The matrix [[2, 1], [1, 2]] has eigenvalues 1 and 3. What is the product of its eigenvalues equal to?",
+      "options": [
+        "Its determinant, 3",
+        "Its trace, 4",
+        "Its largest entry, 2",
+        "The sum of its entries, 6"
+      ],
+      "answer": 0,
+      "explanation": "The determinant equals the product of the eigenvalues: 4 - 1 = 1 x 3 = 3.",
+      "source_time": 165.3,
+      "origin": "llm",
+      "chunk": 1,
+      "support": 0.5
+    },
+    {
+      "question": "Which term matches this definition: The sum of the diagonal entries; it equals the sum of the eigenvalues.",
+      "options": [
+        "symmetric matrices",
+        "trace",
+        "singular",
+        "characteristic polynomial"
+      ],
+      "answer": 1,
+      "explanation": "trace: The sum of the diagonal entries; it equals the sum of the eigenvalues.",
+      "source_time": 165.3,
+      "origin": "concept",
+      "chunk": null,
+      "support": 1.0
+    }
+  ],
+  "model": "scripted-stand-in",
+  "provider": "replay:scripted",
+  "chunks": 2,
+  "llm_calls": 2,
+  "prompt_tokens": 0,
+  "completion_tokens": 0,
+  "latency_s": 0.0,
+  "seed": 0,
+  "dropped_ungrounded": [
+    "What does a matrix do to one of its eigenvectors?"
+  ],
+  "dropped_duplicates": 0
+}

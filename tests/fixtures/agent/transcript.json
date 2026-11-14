@@ -1,0 +1,224 @@
+{
+  "segments": [
+    {
+      "id": 0,
+      "start": 0.0,
+      "end": 6.68,
+      "text": "Okay, let's get started. Before the math, a couple of announcements.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 1,
+      "start": 7.28,
+      "end": 15.86,
+      "text": "Problem set four is due next Wednesday at 5pm, and it covers everything up to today.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 2,
+      "start": 16.46,
+      "end": 23.9,
+      "text": "Also please read sections 6.1 and 6.2 in the textbook before Monday's class.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 3,
+      "start": 24.5,
+      "end": 32.7,
+      "text": "Last time we talked about linear transformations and how a matrix acts on a vector.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 4,
+      "start": 33.3,
+      "end": 38.84,
+      "text": "Today the big idea is eigenvalues and eigenvectors.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 5,
+      "start": 39.44,
+      "end": 48.78,
+      "text": "An eigenvector of a matrix A is a nonzero vector x such that A x equals lambda x.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 6,
+      "start": 49.38,
+      "end": 58.72,
+      "text": "The number lambda is called the eigenvalue. So the matrix only stretches that direction, it doesn't rotate it.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 7,
+      "start": 59.32,
+      "end": 68.28,
+      "text": "If lambda is two, the vector gets twice as long. If lambda is negative one, it flips.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 8,
+      "start": 68.88,
+      "end": 78.22,
+      "text": "How do we find them? Move everything to one side: A minus lambda I, times x, equals zero.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 9,
+      "start": 78.82,
+      "end": 86.64,
+      "text": "We want a nonzero x, so A minus lambda I has to be singular.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 10,
+      "start": 87.24,
+      "end": 93.92,
+      "text": "And a matrix is singular exactly when its determinant is zero.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 11,
+      "start": 94.52,
+      "end": 104.62,
+      "text": "So the eigenvalues are the roots of the determinant of A minus lambda I. That polynomial is the characteristic polynomial.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 12,
+      "start": 105.22,
+      "end": 113.8,
+      "text": "For a two by two matrix it's a quadratic, so you get at most two eigenvalues.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 13,
+      "start": 114.4,
+      "end": 121.08,
+      "text": "Let's do an example. Take A equals two one, one two.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 14,
+      "start": 121.68,
+      "end": 129.12,
+      "text": "A minus lambda I is two minus lambda, one, one, two minus lambda.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 15,
+      "start": 129.72,
+      "end": 139.44,
+      "text": "The determinant is two minus lambda squared minus one, which factors as lambda minus one times lambda minus three.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 16,
+      "start": 140.04,
+      "end": 145.2,
+      "text": "So the eigenvalues are one and three.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 17,
+      "start": 145.8,
+      "end": 154.76,
+      "text": "For lambda equals three, the eigenvector is one one. For lambda equals one, it's one minus one.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 18,
+      "start": 155.36,
+      "end": 164.7,
+      "text": "Notice the two eigenvectors are perpendicular. That always happens for symmetric matrices, and we'll prove it next week.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 19,
+      "start": 165.3,
+      "end": 179.96,
+      "text": "Two quick facts you can check on the example. The trace, the sum of the diagonal, equals the sum of the eigenvalues. Two plus two is four, one plus three is four.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 20,
+      "start": 180.56,
+      "end": 190.66,
+      "text": "And the determinant equals the product of the eigenvalues. Four minus one is three, and one times three is three.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 21,
+      "start": 191.26,
+      "end": 198.7,
+      "text": "By the way, this result about symmetric matrices is due to Cauchy, historically.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 22,
+      "start": 199.3,
+      "end": 209.02,
+      "text": "One more thing: the midterm is on November 24th, in this room, and it covers chapters one through six.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    },
+    {
+      "id": 23,
+      "start": 209.62,
+      "end": 215.16,
+      "text": "Okay, that's it for today. See you Monday.",
+      "avg_logprob": -0.21,
+      "no_speech_prob": 0.02,
+      "words": []
+    }
+  ],
+  "language": "en",
+  "language_probability": 0.99,
+  "duration": 215.16,
+  "model": "small"
+}

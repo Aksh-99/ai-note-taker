@@ -39,7 +39,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 4.1 LangGraph agent skeleton: transcript -> notes -> tasks pipeline as a graph
 - [x] 4.2 Deadline/assignment extraction ("homework due Friday") with date resolution
 - [x] 4.3 To-do export (JSON + .ics calendar file)
-- [ ] 4.4 Agent tests with recorded fixtures (no live LLM calls in CI)
+- [x] 4.4 Agent tests with recorded fixtures (no live LLM calls in CI)
 
 ## Phase 5: Search across lectures (RAG)
 - [ ] 5.1 Embeddings with sentence-transformers, store in FAISS/Chroma with lecture + timestamp metadata

@@ -1,0 +1,62 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//ai-note-taker//notetaker//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Tasks: 18.06 Lecture 21: Eigenvalues
+BEGIN:VEVENT
+UID:5b9026edf4c8ebc4@notetaker
+DTSTAMP:20000101T000000Z
+SUMMARY:Due: Read sections 6.1 and 6.2
+DESCRIPTION:Reading from lecture.\nDetails: In the textbook\nLecturer said:
+  "before Monday's class"\nSaid at 00:00:07: Problem set four is due next W
+ ednesday at 5pm\, and it covers everything up to today.\nDate rule: next o
+ ccurrence of weekday
+CATEGORIES:reading
+DTSTART;VALUE=DATE:20261116
+DTEND;VALUE=DATE:20261117
+TRANSP:TRANSPARENT
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Due: Read sections 6.1 and 6.2
+TRIGGER:-P1D
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:4db9c62b6062faaf@notetaker
+DTSTAMP:20000101T000000Z
+SUMMARY:Due: Problem set 4 (?)
+DESCRIPTION:Homework from lecture.\nDetails: Covers everything up to today'
+ s lecture\nLecturer said: "next Wednesday at 5pm"\nThe date phrase was amb
+ iguous\, please double-check.\nSaid at 00:00:07: Problem set four is due n
+ ext Wednesday at 5pm\, and it covers everything up to today.\nDate rule: n
+ ext <weekday> = that day in the following week
+CATEGORIES:homework
+DTSTART:20261118T170000
+DTEND:20261118T173000
+TRANSP:TRANSPARENT
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Due: Problem set 4 (?)
+TRIGGER:-P1D
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:003c19cc8a694d84@notetaker
+DTSTAMP:20000101T000000Z
+SUMMARY:Due: Midterm
+DESCRIPTION:Exam from lecture.\nDetails: In this room\, covers chapters one
+  through six\nLecturer said: "November 24th"\nSaid at 00:03:19: One more t
+ hing: the midterm is on November 24th\, in this room\, and it covers chapt
+ ers one through six.\nDate rule: month and day
+CATEGORIES:exam
+DTSTART;VALUE=DATE:20261124
+DTEND;VALUE=DATE:20261125
+TRANSP:TRANSPARENT
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Due: Midterm
+TRIGGER:-P1D
+END:VALARM
+END:VEVENT
+END:VCALENDAR

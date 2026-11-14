@@ -1,0 +1,104 @@
+{
+  "title": "Flashcards: 18.06 Lecture 21: Eigenvalues",
+  "cards": [
+    {
+      "question": "What is eigenvector?",
+      "answer": "A nonzero vector x such that A x equals lambda x; the matrix only stretches its direction, it does not rotate it.",
+      "source_time": 0.0,
+      "origin": "concept",
+      "chunk": null,
+      "support": 1.0
+    },
+    {
+      "question": "What is eigenvalue (lambda)?",
+      "answer": "The number lambda in A x = lambda x, the factor by which the matrix stretches an eigenvector.",
+      "source_time": 0.0,
+      "origin": "concept",
+      "chunk": null,
+      "support": 1.0
+    },
+    {
+      "question": "What is an eigenvector of a matrix A?",
+      "answer": "A nonzero vector x such that A x equals lambda x.",
+      "source_time": 0.0,
+      "origin": "llm",
+      "chunk": 0,
+      "support": 1.0
+    },
+    {
+      "question": "What is singular?",
+      "answer": "A matrix is singular exactly when its determinant is zero.",
+      "source_time": 59.32,
+      "origin": "concept",
+      "chunk": null,
+      "support": 1.0
+    },
+    {
+      "question": "What is characteristic polynomial?",
+      "answer": "The determinant of A minus lambda I; its roots are the eigenvalues.",
+      "source_time": 59.32,
+      "origin": "concept",
+      "chunk": null,
+      "support": 1.0
+    },
+    {
+      "question": "How do you find the eigenvalues of a matrix A?",
+      "answer": "Find the roots of the determinant of A minus lambda I, the characteristic polynomial.",
+      "source_time": 59.32,
+      "origin": "llm",
+      "chunk": 0,
+      "support": 1.0
+    },
+    {
+      "question": "What is symmetric matrices (symmetric matrix)?",
+      "answer": "Matrices like [[2, 1], [1, 2]] whose eigenvectors are always perpendicular.",
+      "source_time": 114.4,
+      "origin": "concept",
+      "chunk": null,
+      "support": 1.0
+    },
+    {
+      "question": "What are the eigenvalues of the matrix [[2, 1], [1, 2]]?",
+      "answer": "One and three.",
+      "source_time": 114.4,
+      "origin": "llm",
+      "chunk": 1,
+      "support": 1.0
+    },
+    {
+      "question": "What is trace?",
+      "answer": "The sum of the diagonal entries; it equals the sum of the eigenvalues.",
+      "source_time": 165.3,
+      "origin": "concept",
+      "chunk": null,
+      "support": 1.0
+    },
+    {
+      "question": "How are the eigenvalues of a matrix related to its trace?",
+      "answer": "The trace, the sum of the diagonal, equals the sum of the eigenvalues.",
+      "source_time": 165.3,
+      "origin": "llm",
+      "chunk": 1,
+      "support": 1.0
+    },
+    {
+      "question": "How are the eigenvalues of a matrix related to its determinant?",
+      "answer": "The determinant equals the product of the eigenvalues.",
+      "source_time": 165.3,
+      "origin": "llm",
+      "chunk": 1,
+      "support": 1.0
+    }
+  ],
+  "model": "scripted-stand-in",
+  "provider": "replay:scripted",
+  "chunks": 2,
+  "llm_calls": 2,
+  "prompt_tokens": 0,
+  "completion_tokens": 0,
+  "latency_s": 0.0,
+  "dropped_ungrounded": [
+    "Why must A - lambda I be singular when lambda is an eigenvalue?"
+  ],
+  "dropped_duplicates": 0
+}

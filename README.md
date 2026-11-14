@@ -218,5 +218,18 @@ notetaker todo outputs/lecture01/tasks.json --reminder-minutes 120   # alarm 2 h
 notetaker todo outputs/lecture01/tasks.json --vtodo --no-reminder    # to-dos for task apps
 ```
 
+#### Try it offline (recorded LLM replies)
+
+You can run the whole agent on a sample lecture without a model, an API key or a network connection. The LLM replies come from a recorded "cassette":
+
+```bash
+notetaker agent tests/fixtures/agent/transcript.json -o demo_out \
+  --replay-llm tests/fixtures/agent/cassette.json \
+  --title "18.06 Lecture 21: Eigenvalues" --chunk-words 200 \
+  --lecture-date 2026-11-13 --class-days mon wed fri
+```
+
+`--record-llm my_cassette.json` does the opposite: it runs with your configured model and saves every request and reply, so the same run can be replayed later. This is also how the agent is tested: `tests/test_agent_fixtures.py` replays the cassette through the real pipeline and compares every output file with `tests/fixtures/agent/expected/`, and a guard in `tests/conftest.py` fails any test that tries to reach a live LLM. See [tests/fixtures/agent/README.md](tests/fixtures/agent/README.md) for how to re-record.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

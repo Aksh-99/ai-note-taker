@@ -1,0 +1,17 @@
+#separator:Comma
+#html:false
+#notetype:Basic
+#deck:Flashcards: 18.06 Lecture 21: Eigenvalues
+#columns:Front,Back,Tags
+#tags column:3
+What is eigenvector?,"A nonzero vector x such that A x equals lambda x; the matrix only stretches its direction, it does not rotate it. [00:00:00]",flashcards:_18_06_lecture_21:_eigenvalues concept
+What is eigenvalue (lambda)?,"The number lambda in A x = lambda x, the factor by which the matrix stretches an eigenvector. [00:00:00]",flashcards:_18_06_lecture_21:_eigenvalues concept
+What is an eigenvector of a matrix A?,A nonzero vector x such that A x equals lambda x. [00:00:00],flashcards:_18_06_lecture_21:_eigenvalues llm
+What is singular?,A matrix is singular exactly when its determinant is zero. [00:00:59],flashcards:_18_06_lecture_21:_eigenvalues concept
+What is characteristic polynomial?,The determinant of A minus lambda I; its roots are the eigenvalues. [00:00:59],flashcards:_18_06_lecture_21:_eigenvalues concept
+How do you find the eigenvalues of a matrix A?,"Find the roots of the determinant of A minus lambda I, the characteristic polynomial. [00:00:59]",flashcards:_18_06_lecture_21:_eigenvalues llm
+What is symmetric matrices (symmetric matrix)?,"Matrices like [[2, 1], [1, 2]] whose eigenvectors are always perpendicular. [00:01:54]",flashcards:_18_06_lecture_21:_eigenvalues concept
+"What are the eigenvalues of the matrix [[2, 1], [1, 2]]?",One and three. [00:01:54],flashcards:_18_06_lecture_21:_eigenvalues llm
+What is trace?,The sum of the diagonal entries; it equals the sum of the eigenvalues. [00:02:45],flashcards:_18_06_lecture_21:_eigenvalues concept
+How are the eigenvalues of a matrix related to its trace?,"The trace, the sum of the diagonal, equals the sum of the eigenvalues. [00:02:45]",flashcards:_18_06_lecture_21:_eigenvalues llm
+How are the eigenvalues of a matrix related to its determinant?,The determinant equals the product of the eigenvalues. [00:02:45],flashcards:_18_06_lecture_21:_eigenvalues llm

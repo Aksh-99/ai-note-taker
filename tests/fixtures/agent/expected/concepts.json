@@ -1,0 +1,100 @@
+{
+  "title": "Key concepts: 18.06 Lecture 21: Eigenvalues",
+  "concepts": [
+    {
+      "term": "eigenvector",
+      "definition": "A nonzero vector x such that A x equals lambda x; the matrix only stretches its direction, it does not rotate it.",
+      "aliases": [],
+      "first_mention": 0.0,
+      "mentions": [
+        0.0,
+        114.4
+      ],
+      "chunks": [
+        0
+      ],
+      "other_definitions": []
+    },
+    {
+      "term": "eigenvalue",
+      "definition": "The number lambda in A x = lambda x, the factor by which the matrix stretches an eigenvector.",
+      "aliases": [
+        "lambda"
+      ],
+      "first_mention": 0.0,
+      "mentions": [
+        0.0,
+        59.32,
+        114.4,
+        165.3
+      ],
+      "chunks": [
+        0
+      ],
+      "other_definitions": []
+    },
+    {
+      "term": "singular",
+      "definition": "A matrix is singular exactly when its determinant is zero.",
+      "aliases": [],
+      "first_mention": 59.32,
+      "mentions": [
+        59.32
+      ],
+      "chunks": [
+        0
+      ],
+      "other_definitions": []
+    },
+    {
+      "term": "characteristic polynomial",
+      "definition": "The determinant of A minus lambda I; its roots are the eigenvalues.",
+      "aliases": [],
+      "first_mention": 59.32,
+      "mentions": [
+        59.32
+      ],
+      "chunks": [
+        0
+      ],
+      "other_definitions": []
+    },
+    {
+      "term": "symmetric matrices",
+      "definition": "Matrices like [[2, 1], [1, 2]] whose eigenvectors are always perpendicular.",
+      "aliases": [
+        "symmetric matrix"
+      ],
+      "first_mention": 114.4,
+      "mentions": [
+        114.4,
+        165.3
+      ],
+      "chunks": [
+        1
+      ],
+      "other_definitions": []
+    },
+    {
+      "term": "trace",
+      "definition": "The sum of the diagonal entries; it equals the sum of the eigenvalues.",
+      "aliases": [],
+      "first_mention": 165.3,
+      "mentions": [
+        165.3
+      ],
+      "chunks": [
+        1
+      ],
+      "other_definitions": []
+    }
+  ],
+  "model": "scripted-stand-in",
+  "provider": "replay:scripted",
+  "chunks": 2,
+  "llm_calls": 2,
+  "prompt_tokens": 0,
+  "completion_tokens": 0,
+  "latency_s": 0.0,
+  "dropped_ungrounded": []
+}
