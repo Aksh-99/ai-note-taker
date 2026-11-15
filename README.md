@@ -231,5 +231,32 @@ notetaker agent tests/fixtures/agent/transcript.json -o demo_out \
 
 `--record-llm my_cassette.json` does the opposite: it runs with your configured model and saves every request and reply, so the same run can be replayed later. This is also how the agent is tested: `tests/test_agent_fixtures.py` replays the cassette through the real pipeline and compares every output file with `tests/fixtures/agent/expected/`, and a guard in `tests/conftest.py` fails any test that tries to reach a live LLM. See [tests/fixtures/agent/README.md](tests/fixtures/agent/README.md) for how to re-record.
 
+### Search across lectures (in progress)
+
+The search index is a Python API for now; the `ingest` and `ask` commands come next. Neural embeddings need the optional extra, which installs sentence-transformers and PyTorch (the model, `all-MiniLM-L6-v2`, about 90 MB, downloads on first use):
+
+```bash
+pip install -e ".[rag]"
+```
+
+```python
+from notetaker.embeddings import make_embedder
+from notetaker.transcribe import Transcript
+from notetaker.vectorstore import VectorStore
+
+# Uses NOTETAKER_EMBEDDING_MODEL; make_embedder("hashing-512") needs no model.
+store = VectorStore(make_embedder())
+store.add_transcript(
+    Transcript.load_json("outputs/la-05/transcript.json"),
+    lecture_id="la-05",
+    title="18.06 Lecture 21: Eigenvalues",
+)
+for hit in store.search("how do we find eigenvalues?", k=3):
+    print(f"{hit.score:.2f}  {hit.passage.citation()}  {hit.passage.text[:80]}")
+store.save("index/")  # reload later with VectorStore.load("index/")
+```
+
+Each transcript is split into overlapping passages of about 120 words (roughly 45 seconds of speech) that keep their lecture id and start/end times, so every result can be cited as `Lecture [HH:MM:SS]`. Passages are embedded into unit-length vectors and stored in an exact FAISS inner-product index, where inner product equals cosine similarity. The saved index records which embedding model built it and refuses to load with a different one. `hashing-512` is a model-free bag-of-words embedder used by the tests and as a lexical baseline.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

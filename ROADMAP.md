@@ -42,7 +42,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 4.4 Agent tests with recorded fixtures (no live LLM calls in CI)
 
 ## Phase 5: Search across lectures (RAG)
-- [ ] 5.1 Embeddings with sentence-transformers, store in FAISS/Chroma with lecture + timestamp metadata
+- [x] 5.1 Embeddings with sentence-transformers, store in FAISS/Chroma with lecture + timestamp metadata
 - [ ] 5.2 Ingest command: index all transcripts in a folder
 - [ ] 5.3 Ask command: answer questions with citations to lecture + timestamp
 - [ ] 5.4 Retrieval eval: small labeled question set, recall@k and MRR

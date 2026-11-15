@@ -4,6 +4,30 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-14 · Step 5.1: Embeddings + FAISS vector store with lecture and timestamp metadata
+
+**What I did**
+- Added `src/notetaker/embeddings.py` with one small interface, `Embedder` (a `name`, a dimension `dim`, `embed(texts)` and `embed_query(text)`, always returning unit-length float32 vectors), and two implementations:
+  - `SentenceTransformerEmbedder`: the real model, `sentence-transformers/all-MiniLM-L6-v2` by default (free, Apache 2.0, 384 dimensions, runs locally on CPU). It loads lazily on first use, supports query/passage prefixes for models like E5, and handles both the old and new name of the library's "embedding dimension" method
+  - `HashingEmbedder`: a model-free bag-of-words embedder using the hashing trick (signed feature hashing, sublinear term frequency, half-weight bigrams, BLAKE2b so vectors are identical across runs and machines). Tests and CI use it, and it will be the lexical baseline in the retrieval eval (Step 5.4)
+  - `make_embedder(name)` rebuilds either one from its name, which is how a saved index recreates its model
+- Added `src/notetaker/vectorstore.py`:
+  - `split_passages` groups transcript segments into overlapping windows (at most 120 words or 90 seconds, one segment of overlap), each a `Passage` with lecture id, title, source file, start/end seconds, segment ids and a `citation()` like `18.06 Lecture 21 [00:12:41]`
+  - `VectorStore` keeps passages next to a FAISS `IndexFlatIP` (exact inner-product search). It supports `add_transcript` (re-indexing a lecture replaces it instead of duplicating it), `remove_lecture`, `search(query, k, lecture_ids=...)` and `save`/`load`
+  - On disk an index is a folder: `index.faiss`, `passages.jsonl` (row i of the index is line i) and `manifest.json` (embedding model, dimension, count, lectures, format version). Loading checks all of these and refuses a different embedding model, a dimension mismatch, a truncated file or an old format with a clear error
+- Dependencies: `faiss-cpu` is now a core dependency (small CPU wheel, so the store is tested in CI). `sentence-transformers` is a new optional extra, `pip install -e ".[rag]"`, because it pulls in PyTorch. `index/` and `*.faiss` are gitignored
+- 44 new tests in `tests/test_embeddings.py` and `tests/test_vectorstore.py`, all offline: passage windowing (word limit, time limit, overlap, oversized segments, empty segments), search ranking, FAISS scores checked against a brute-force NumPy dot product, lecture filters, replace and remove keeping rows aligned, save/load round trips and every load error. The sentence-transformers wrapper is tested with a fake model; one `slow` test loads the real MiniLM and is skipped in CI. `make check` passes (734 tests, lint clean)
+- Honest note: this sandbox cannot reach Hugging Face, so the real MiniLM model was not run here. Run `pip install -e ".[rag]" && pytest -m slow tests/test_embeddings.py` locally to check it
+- README has a short "Search across lectures" section with a working Python example (tested on the fixture lecture with the hashing embedder)
+
+**How it works**
+Search starts by turning text into geometry. An embedding model maps a piece of text to a point in 384-dimensional space, trained so that sentences with similar meaning land close together even when they share no words. Every vector is scaled to length 1, so the cosine of the angle between two vectors is just their dot product, and "most similar passage" means "largest dot product with the query vector". FAISS does that search: its flat index stores every vector and computes all the dot products exactly, which takes well under a millisecond for a semester of lectures, so no approximate index is needed yet. The unit of search is a passage of about 45 seconds of speech rather than a whole lecture (too blurry, and no timestamp) or a single sentence (too little context); passages overlap by one sentence so an idea cut at a boundary is still whole somewhere. Each passage carries its lecture and start time, so any result can be cited and jumped to. Finally, vectors from two different models live in unrelated spaces, so the saved index records which model built it and refuses to be queried with another. The hashing embedder exists so all of this is testable without downloading a model: it hashes each word to a coordinate, which only rewards shared words, and that limitation makes it a useful baseline for showing what the neural model adds.
+
+**Next up**
+Step 5.2: Ingest command: index all transcripts in a folder.
+
+---
+
 ## 2026-11-13 · Step 4.4: Agent tests with recorded fixtures (no live LLM calls in CI)
 
 **What I did**

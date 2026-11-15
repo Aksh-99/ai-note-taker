@@ -45,3 +45,8 @@ data/audio/
 
 # Generated transcripts, notes, and flashcards (NOTETAKER_OUTPUT_DIR default)
 outputs/
+
+# Search indexes are generated from transcripts (vectorstore.py); rebuild them
+# instead of committing them.
+index/
+*.faiss

@@ -39,6 +39,10 @@ dependencies = [
     # Graph-based orchestration of the pipeline stages (agent.py). Free and
     # open source (MIT); it runs locally and needs no account or API key.
     "langgraph>=1.0",
+    # Exact nearest-neighbour search over embedding vectors (vectorstore.py).
+    # Free and open (MIT, from Meta). The CPU wheel is small, so it is a core
+    # dependency and the vector store is tested in CI.
+    "faiss-cpu>=1.8",
 ]
 
 [project.optional-dependencies]
@@ -50,6 +54,14 @@ dev = [
     # Independent iCalendar parser, used only in tests to prove the .ics
     # files we write by hand (todo.py) can be read by real software.
     "icalendar>=5.0",
+]
+
+# Neural embeddings for search across lectures (embeddings.py). Optional
+# because sentence-transformers pulls in PyTorch, a large download. Without
+# it everything still works with the model-free HashingEmbedder:
+#   pip install -e ".[rag]"
+rag = [
+    "sentence-transformers>=3.0",
 ]
 
 [project.scripts]
