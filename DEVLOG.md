@@ -4,6 +4,25 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-15 · Step 5.2: Ingest command (index every transcript in a folder)
+
+**What I did**
+- Added `src/notetaker/ingest.py` and a new command, `notetaker ingest FOLDER --index index/`. It finds every `transcript.json` under a folder at any depth (or any glob with `--pattern`), splits each into time-stamped passages, embeds them and saves one FAISS index using the Step 5.1 `VectorStore`
+- Ingest is incremental. A new file `index/ingest.json` records, for each lecture, its source file, a SHA-256 hash of the file, its title and its passage count, plus the embedding model and passage settings. On a re-run each lecture is one of: `added` (new), `updated` (hash, title or passage settings changed), `unchanged` (skipped, nothing embedded), `missing` (indexed but its transcript is gone, kept by default) or `removed` (with `--prune`). A run where nothing changed writes nothing
+- Lecture ids come from the folder name (`outputs/la-05/transcript.json` is `la-05`). If two folders share a name, both fall back to their relative path (`fall-la-05`, `spring-la-05`) so nothing is silently overwritten
+- Options: `--embedder` (a sentence-transformers model or `hashing-512`), `--titles titles.json` (lecture id to title, used in citations), `--max-words` / `--max-seconds` (passage size), `--rebuild`, `--prune`, `--dry-run` (counts passages without embedding or saving)
+- Safety rails: an existing index keeps the model it was built with, and asking for another is an error that points at `--rebuild`. A transcript that cannot be read is reported as `failed` and the rest are still indexed (exit code 1 so scripts notice); if it was a broken update to an already-indexed lecture, the old version stays searchable. A lost or corrupt `ingest.json` just means one full re-embed
+- 33 new tests in `tests/test_ingest.py`, all offline with the hashing embedder. A counting embedder checks that unchanged lectures are really not re-embedded, not just labelled that way. Also covered: id collisions, title and settings changes, prune, failed files, dry run, model mismatch, lost state and the CLI. `make check` passes (767 tests, lint clean)
+- README: the search section now leads with the `ingest` command
+
+**How it works**
+Embedding is the expensive step, so the goal is to only embed what changed. The trick is a content hash: SHA-256 turns a file of any size into a 64-character fingerprint where identical bytes always give the same fingerprint and any edit, even one character, gives a completely different one. Storing each transcript's fingerprint in `ingest.json` turns "did this lecture change since last time?" into a string comparison, which is more reliable than file modification times (those change on copy or `git checkout` even when the content did not). Changed lectures are re-indexed with the store's replace behaviour, which deletes the old passages before adding the new ones, so the index never holds two versions of a lecture. Anything that changes the passages themselves, like a new title (which is baked into citations) or new passage sizes, also counts as a change. The design is the same idea `make` and build caches use: remember a fingerprint of each input, and only redo the work whose inputs moved.
+
+**Next up**
+Step 5.3: Ask command: answer questions with citations to lecture + timestamp.
+
+---
+
 ## 2026-11-14 · Step 5.1: Embeddings + FAISS vector store with lecture and timestamp metadata
 
 **What I did**

@@ -55,6 +55,10 @@ Commands so far:
     notetaker todo outputs/lecture01/tasks.json --reminder-minutes 120
                           re-export tasks.json as todo.json + tasks.ics with
                           other calendar options (--vtodo, --no-reminder)
+    notetaker ingest outputs/ --index index/
+                          embed every transcript.json under outputs/ into a
+                          FAISS search index; re-runs only embed new or
+                          changed lectures (--prune drops deleted ones)
 """
 
 import argparse
@@ -886,6 +890,71 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reminder.add_argument(
         "--no-reminder", action="store_true", help="no alarm in the calendar file"
+    )
+    ig = subcommands.add_parser(
+        "ingest",
+        help="index all transcripts in a folder for search across lectures",
+        description=(
+            "Find every transcript under a folder (any depth), split each into "
+            "time-stamped passages, embed them and save a FAISS index. Running "
+            "it again only embeds lectures that are new or whose transcript "
+            "changed (tracked by file hash in <index>/ingest.json)."
+        ),
+    )
+    ig.add_argument("folder", type=Path, help="folder to search for transcripts")
+    ig.add_argument(
+        "-i",
+        "--index",
+        type=Path,
+        default=Path("index"),
+        help="index folder to create or update (default: index/)",
+    )
+    ig.add_argument(
+        "--embedder",
+        default=None,
+        help=(
+            "embedding model for a new index: a sentence-transformers name, or "
+            "hashing-512 for a model-free baseline (default: "
+            "NOTETAKER_EMBEDDING_MODEL). An existing index keeps its own model"
+        ),
+    )
+    ig.add_argument(
+        "--pattern",
+        default="transcript.json",
+        help="file name glob to look for (default: transcript.json)",
+    )
+    ig.add_argument(
+        "--titles",
+        type=Path,
+        default=None,
+        help='JSON file mapping lecture id to title, e.g. {"la-05": "Eigenvalues"}',
+    )
+    ig.add_argument(
+        "--max-words",
+        type=int,
+        default=120,
+        help="maximum words per passage (default: 120)",
+    )
+    ig.add_argument(
+        "--max-seconds",
+        type=float,
+        default=90.0,
+        help="maximum seconds of speech per passage (default: 90)",
+    )
+    ig.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="ignore the existing index and re-embed everything",
+    )
+    ig.add_argument(
+        "--prune",
+        action="store_true",
+        help="remove indexed lectures whose transcript is no longer in the folder",
+    )
+    ig.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="show what would be indexed without embedding or saving anything",
     )
     return parser
 
@@ -2017,6 +2086,60 @@ def run_todo(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_ingest(args: argparse.Namespace) -> int:
+    """Handle `notetaker ingest`: a folder of transcripts in, a search index out."""
+    from notetaker.embeddings import EmbeddingError
+    from notetaker.ingest import (
+        FAILED,
+        MISSING,
+        IngestError,
+        LectureResult,
+        SplitOptions,
+        ingest_folder,
+        load_titles,
+    )
+    from notetaker.vectorstore import VectorStoreError
+
+    # One symbol per outcome, so a long run is easy to scan.
+    marks = {"added": "+", "updated": "~", "unchanged": "=", "removed": "-"}
+
+    def show(result: LectureResult) -> None:
+        mark = marks.get(result.status, "!")
+        line = f"  {mark} {result.lecture_id}: {result.status}"
+        if result.status not in (FAILED, MISSING):
+            line += f", {result.passages} passage(s)"
+        if result.reason and result.status != "added":
+            line += f" ({result.reason})"
+        print(line, flush=True)
+
+    try:
+        options = SplitOptions(max_words=args.max_words, max_seconds=args.max_seconds)
+        titles = load_titles(args.titles)
+        print(f"Indexing {args.folder} into {args.index}/")
+        report = ingest_folder(
+            args.folder,
+            args.index,
+            embedder_name=args.embedder,
+            pattern=args.pattern,
+            titles=titles,
+            options=options,
+            rebuild=args.rebuild,
+            prune=args.prune,
+            dry_run=args.dry_run,
+            on_result=show,
+        )
+    # ValueError covers bad passage sizes (e.g. --max-words 0) from the store.
+    except (IngestError, VectorStoreError, EmbeddingError, ValueError) as error:
+        print(f"Error: {error}")
+        return 1
+    print(f"Embedding model: {report.embedder}")
+    prefix = "Dry run, nothing saved: " if report.dry_run else ""
+    print(prefix + report.summary())
+    if report.saved:
+        print(f"Wrote {args.index}/")
+    return 0 if report.ok else 1
+
+
 def run_agent(args: argparse.Namespace, client=None) -> int:
     """Handle `notetaker agent`: the whole pipeline in one command.
 
@@ -2185,6 +2308,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_tasks(args)
     if args.command == "todo":
         return run_todo(args)
+    if args.command == "ingest":
+        return run_ingest(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

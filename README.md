@@ -233,27 +233,32 @@ notetaker agent tests/fixtures/agent/transcript.json -o demo_out \
 
 ### Search across lectures (in progress)
 
-The search index is a Python API for now; the `ingest` and `ask` commands come next. Neural embeddings need the optional extra, which installs sentence-transformers and PyTorch (the model, `all-MiniLM-L6-v2`, about 90 MB, downloads on first use):
+Neural embeddings need the optional extra, which installs sentence-transformers and PyTorch (the model, `all-MiniLM-L6-v2`, about 90 MB, downloads on first use):
 
 ```bash
 pip install -e ".[rag]"
 ```
 
+Index every `transcript.json` under a folder (any depth) into one search index:
+
+```bash
+notetaker ingest outputs/ --index index/
+notetaker ingest outputs/ --titles titles.json        # {"la-05": "18.06 Lecture 21: Eigenvalues"}
+notetaker ingest outputs/ --embedder hashing-512      # model-free baseline, no download
+notetaker ingest outputs/ --dry-run                   # show what would change
+notetaker ingest outputs/ --prune                     # drop lectures whose transcript was deleted
+```
+
+Re-running `ingest` is cheap: each transcript's SHA-256 hash is stored in `index/ingest.json`, so only new or changed lectures are embedded again (a changed title or passage size also triggers a re-index). An index keeps the embedding model it was built with; switching models needs `--rebuild`. A transcript that cannot be read is reported and skipped without blocking the rest. Lecture ids come from the folder name (`outputs/la-05/transcript.json` is `la-05`), with the relative path used instead if two folders share a name.
+
+The index can also be used from Python:
+
 ```python
-from notetaker.embeddings import make_embedder
-from notetaker.transcribe import Transcript
 from notetaker.vectorstore import VectorStore
 
-# Uses NOTETAKER_EMBEDDING_MODEL; make_embedder("hashing-512") needs no model.
-store = VectorStore(make_embedder())
-store.add_transcript(
-    Transcript.load_json("outputs/la-05/transcript.json"),
-    lecture_id="la-05",
-    title="18.06 Lecture 21: Eigenvalues",
-)
+store = VectorStore.load("index/")  # rebuilds the embedding model it was made with
 for hit in store.search("how do we find eigenvalues?", k=3):
     print(f"{hit.score:.2f}  {hit.passage.citation()}  {hit.passage.text[:80]}")
-store.save("index/")  # reload later with VectorStore.load("index/")
 ```
 
 Each transcript is split into overlapping passages of about 120 words (roughly 45 seconds of speech) that keep their lecture id and start/end times, so every result can be cited as `Lecture [HH:MM:SS]`. Passages are embedded into unit-length vectors and stored in an exact FAISS inner-product index, where inner product equals cosine similarity. The saved index records which embedding model built it and refuses to load with a different one. `hashing-512` is a model-free bag-of-words embedder used by the tests and as a lexical baseline.
