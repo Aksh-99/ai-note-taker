@@ -59,6 +59,10 @@ Commands so far:
                           embed every transcript.json under outputs/ into a
                           FAISS search index; re-runs only embed new or
                           changed lectures (--prune drops deleted ones)
+    notetaker ask "What is an eigenvector?" --index index/
+                          answer a question from the indexed lectures with
+                          numbered citations to lecture + timestamp;
+                          --no-llm returns the best passage verbatim
 """
 
 import argparse
@@ -955,6 +959,96 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="show what would be indexed without embedding or saving anything",
+    )
+    ak = subcommands.add_parser(
+        "ask",
+        help="answer a question from your lectures, citing lecture + timestamp",
+        description=(
+            "Search the index built by `notetaker ingest` for the passages "
+            "most similar to the question, then ask the configured LLM to "
+            "answer using only those passages and cite them by number. Every "
+            "citation is checked against the retrieved passages, and its "
+            "lecture title and timestamp come from the index, not the model. "
+            "With --no-llm the best passage is returned verbatim (offline)."
+        ),
+    )
+    ak.add_argument("question", help="the question, in quotes")
+    ak.add_argument(
+        "-i",
+        "--index",
+        type=Path,
+        default=Path("index"),
+        help="index folder from `notetaker ingest` (default: index/)",
+    )
+    ak.add_argument(
+        "-k",
+        "--top-k",
+        type=int,
+        default=5,
+        help="passages to retrieve and show the model (default: 5)",
+    )
+    ak.add_argument(
+        "-l",
+        "--lecture",
+        action="append",
+        default=None,
+        metavar="LECTURE_ID",
+        help="only search this lecture (repeat for several)",
+    )
+    ak.add_argument(
+        "--min-score",
+        type=float,
+        default=None,
+        help=(
+            "answer 'not covered' without calling the LLM if the best passage's "
+            "similarity is below this (e.g. 0.3 for MiniLM; default: off)"
+        ),
+    )
+    ak.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="no LLM call: return the best matching passage verbatim",
+    )
+    ak.add_argument(
+        "-p",
+        "--provider",
+        choices=get_args(LLMProvider),
+        default=None,
+        help="override NOTETAKER_LLM_PROVIDER",
+    )
+    ak.add_argument("-m", "--model", default=None, help="override NOTETAKER_LLM_MODEL")
+    ak.add_argument(
+        "--max-repairs",
+        type=int,
+        default=1,
+        help="times to ask the model to fix an unusable reply (default: 1)",
+    )
+    ak.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        help="also save the answer: .json for the full record, else Markdown",
+    )
+    ak.add_argument(
+        "--json",
+        action="store_true",
+        help="print the full answer record as JSON instead of text",
+    )
+    ask_cassette = ak.add_mutually_exclusive_group()
+    ask_cassette.add_argument(
+        "--record-llm",
+        type=Path,
+        default=None,
+        metavar="CASSETTE",
+        help="save the LLM request and reply to a cassette file",
+    )
+    ask_cassette.add_argument(
+        "--replay-llm",
+        type=Path,
+        default=None,
+        metavar="CASSETTE",
+        help="answer the LLM call from a recorded cassette (offline)",
     )
     return parser
 
@@ -2140,6 +2234,114 @@ def run_ingest(args: argparse.Namespace) -> int:
     return 0 if report.ok else 1
 
 
+def run_ask(args: argparse.Namespace, client=None) -> int:
+    """Handle `notetaker ask`: a question in, a cited answer out.
+
+    `client` is only for tests (a FakeLLMClient).
+    """
+    import json
+    import sys
+
+    from notetaker.ask import AskError, ask
+    from notetaker.cassette import (
+        CassetteFormatError,
+        CassetteMiss,
+        RecordingClient,
+        ReplayClient,
+    )
+    from notetaker.embeddings import EmbeddingError
+    from notetaker.llm import LLMError, make_client
+    from notetaker.vectorstore import VectorStore, VectorStoreError
+
+    if args.top_k <= 0 or args.max_repairs < 0:
+        print("Error: --top-k must be > 0 and --max-repairs >= 0")
+        return 1
+    try:
+        store = VectorStore.load(args.index)
+    except (VectorStoreError, EmbeddingError) as error:
+        print(f"Error: {error}")
+        if not (args.index / "manifest.json").exists():
+            print("Build one first with: notetaker ingest <folder> --index", args.index)
+        return 1
+    if args.lecture:
+        unknown = sorted(set(args.lecture) - set(store.lectures()))
+        if unknown:
+            print(f"Error: not in the index: {', '.join(unknown)}")
+            print(f"Indexed lectures: {', '.join(store.lectures()) or '(none)'}")
+            return 1
+
+    recorder = None
+    try:
+        if args.no_llm:
+            client = None
+        elif args.replay_llm is not None:
+            client = ReplayClient(args.replay_llm)
+        elif client is None:
+            client = make_client(
+                get_settings(), provider=args.provider, model=args.model
+            )
+        if args.record_llm is not None and client is not None:
+            recorder = client = RecordingClient(client, args.record_llm)
+    except FileNotFoundError:
+        print(f"Error: no such cassette: {args.replay_llm}")
+        return 1
+    except CassetteFormatError as error:
+        print(f"Error: {error}")
+        return 1
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+    except LLMError as error:
+        print(f"Error: {error}")
+        return 1
+
+    try:
+        answer = ask(
+            store,
+            args.question,
+            client,
+            k=args.top_k,
+            lecture_ids=args.lecture,
+            min_score=args.min_score,
+            use_llm=not args.no_llm,
+            max_repairs=args.max_repairs,
+        )
+    except (AskError, CassetteMiss, LLMError, ValueError) as error:
+        print(f"Error: {error}")
+        return 1
+    finally:
+        if recorder is not None and recorder.cassette.interactions:
+            recorder.save()
+
+    # With --json, stdout holds only the JSON record (so it can be piped into
+    # another program); status lines like "Wrote ..." go to stderr instead.
+    def status(message: str) -> None:
+        print(message, file=sys.stderr if args.json else sys.stdout)
+
+    if args.json:
+        print(json.dumps(answer.to_dict(), indent=2, ensure_ascii=False))
+    else:
+        print(answer.to_markdown())
+        how = (
+            f"{answer.provider} · {answer.model}, {answer.llm_calls} LLM call(s), "
+            f"{answer.latency_s:.1f}s"
+            if answer.llm_calls
+            else f"{answer.mode}, no LLM call"
+        )
+        print(f"({len(answer.retrieved)} passage(s) retrieved; {how})")
+    if recorder is not None and recorder.cassette.interactions:
+        status(f"Wrote {recorder.path}")
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        if args.output.suffix.lower() == ".json":
+            content = json.dumps(answer.to_dict(), indent=2, ensure_ascii=False)
+        else:
+            content = answer.to_markdown()
+        args.output.write_text(content + "\n", encoding="utf-8")
+        status(f"Wrote {args.output}")
+    return 0
+
+
 def run_agent(args: argparse.Namespace, client=None) -> int:
     """Handle `notetaker agent`: the whole pipeline in one command.
 
@@ -2310,6 +2512,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_todo(args)
     if args.command == "ingest":
         return run_ingest(args)
+    if args.command == "ask":
+        return run_ask(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

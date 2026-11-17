@@ -251,6 +251,30 @@ notetaker ingest outputs/ --prune                     # drop lectures whose tran
 
 Re-running `ingest` is cheap: each transcript's SHA-256 hash is stored in `index/ingest.json`, so only new or changed lectures are embedded again (a changed title or passage size also triggers a re-index). An index keeps the embedding model it was built with; switching models needs `--rebuild`. A transcript that cannot be read is reported and skipped without blocking the rest. Lecture ids come from the folder name (`outputs/la-05/transcript.json` is `la-05`), with the relative path used instead if two folders share a name.
 
+Then ask questions and get answers with citations to the lecture and the moment it was said:
+
+```bash
+notetaker ask "How do we find eigenvalues?" --index index/
+notetaker ask "When is the midterm?" -l la-05            # only search one lecture
+notetaker ask "What is a Hessian?" --min-score 0.3      # say "not covered" instead of guessing
+notetaker ask "What is an eigenvector?" --no-llm        # offline: best passage, verbatim
+notetaker ask "What is an eigenvector?" --json -o answer.json
+```
+
+```
+## How do we find eigenvalues?
+
+We solve the characteristic polynomial det(A - lambda I) = 0 [1]. The trace
+then gives a quick check, since it equals the sum of the eigenvalues [2].
+
+**Sources**
+
+1. 18.06 Lecture 21 [00:12:41] (similarity 0.71): "To find eigenvalues we solve ..."
+2. 18.06 Lecture 21 [00:31:05] (similarity 0.58): "Two quick facts you can check ..."
+```
+
+The top passages (5 by default) are numbered and sent to the configured free LLM with instructions to answer only from them and cite by number. The code then checks every `[n]`: a citation counts only if passage `n` was really retrieved, citations are renumbered in order of use, and the lecture title and timestamp are filled in from the index, so a cited time always exists. A reply with broken JSON or no citations is sent back once for repair. The model can also answer `"answerable": false` when the lectures do not cover the question. `--record-llm` / `--replay-llm` work as for `agent`.
+
 The index can also be used from Python:
 
 ```python

@@ -4,6 +4,26 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-16 · Step 5.3: Ask command (answers with citations to lecture + timestamp)
+
+**What I did**
+- Added `src/notetaker/ask.py` and a new command, `notetaker ask "QUESTION" --index index/`. It retrieves the top passages from the Step 5.2 index, numbers them `[1]..[k]`, and asks the configured free LLM (Ollama, Groq or Hugging Face) to answer in JSON using only those passages, citing each sentence by number
+- Citations are checked in code, not trusted: `resolve_citations` accepts `[n]` only if passage n was really retrieved, renumbers citations in order of first use (`[4] ... [1]` becomes `[1] ... [2]`), splits groups like `[3, 1]` into `[1][2]`, leaves maths like the interval `[0, 1]` alone, and reports invented ones like `[9]` as a warning. The lecture title, timestamp and similarity of each source come from the index metadata, never from the model
+- Repair loop like the notes step: broken JSON, or an answer that claims to be answerable but cites nothing, is sent back to the model with the reason (`--max-repairs`, default 1). An uncited answer is kept with a warning if repairs run out; broken JSON every time is an error
+- Two ways to say "not covered": `--min-score` refuses before any LLM call when the best passage is not similar enough (no tokens spent), and the model can return `"answerable": false`
+- Options: `-k/--top-k`, `-l/--lecture` (repeatable filter, unknown ids are an error that lists the indexed ones), `--no-llm` (offline extractive mode: the best passage verbatim, cited), `--json` (stdout is pure JSON, status lines go to stderr so it pipes cleanly), `-o answer.md|answer.json`, and `--record-llm` / `--replay-llm` cassettes as in `agent`
+- The `Answer` record keeps the cited passages and also every retrieved passage with its rank and score, plus mode, model, LLM calls and latency. Step 5.4 (retrieval eval) will use exactly this
+- 38 new tests in `tests/test_ask.py`, all offline (hashing embedder + `FakeLLMClient`): renumbering, invented and maths brackets, every repair path, refusals, min-score skipping the LLM, extractive mode, lecture filter, Markdown/JSON output and the CLI including a record-then-replay round trip. `make check` passes (805 tests, lint clean)
+- README: the search section now shows `ask` with example output
+
+**How it works**
+This is the generation half of RAG. A small free model has never heard these lectures, so instead of asking it cold we first search the index for the passages most similar to the question and paste them into the prompt as numbered sources. The model's job shrinks from "know the answer" to "read five short passages and summarise what they say", which small models do well. The key design choice is citing by number instead of asking the model for lecture names and times: a small integer is easy for a model to copy and easy for code to verify, and the real title and timestamp are then looked up from the passage's stored metadata. So the model can still cite the wrong passage (a judgement error a reader can spot by clicking through), but it can never produce a timestamp that does not exist. The `min_score` threshold is a cheap guard on the retrieval side: if even the best passage is far from the question in embedding space, the lectures probably never covered it and the honest answer is "not found".
+
+**Next up**
+Step 5.4: Retrieval eval: small labeled question set, recall@k and MRR.
+
+---
+
 ## 2026-11-15 · Step 5.2: Ingest command (index every transcript in a folder)
 
 **What I did**
