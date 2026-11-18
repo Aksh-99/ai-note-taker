@@ -1,0 +1,224 @@
+{
+  "segments": [
+    {
+      "id": 0,
+      "start": 0.0,
+      "end": 5.6,
+      "text": "Alright, today we fit our first real model. Linear regression, trained with gradient descent.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 1,
+      "start": 6.2,
+      "end": 15.0,
+      "text": "We have training examples, each a feature vector x and a target value y, and we want to predict y from x.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 2,
+      "start": 15.6,
+      "end": 22.4,
+      "text": "The model is a weighted sum. The prediction is w transpose x plus a bias term b.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 3,
+      "start": 23.0,
+      "end": 32.2,
+      "text": "To say how good a choice of weights is, we define a loss. We use the mean squared error over the training set.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 4,
+      "start": 32.8,
+      "end": 40.0,
+      "text": "Squaring the errors punishes big mistakes heavily and makes the loss a smooth bowl shaped function of w.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 5,
+      "start": 40.6,
+      "end": 47.4,
+      "text": "For linear regression there is a closed form solution, the normal equations, with X transpose X inverse.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 6,
+      "start": 48.0,
+      "end": 56.0,
+      "text": "But inverting that matrix costs cubic time in the number of features, and it does not extend to neural networks.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 7,
+      "start": 56.6,
+      "end": 63.4,
+      "text": "So instead we use gradient descent. Start with some weights and repeatedly take a small step downhill.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 8,
+      "start": 64.0,
+      "end": 71.2,
+      "text": "The gradient points in the direction where the loss increases fastest, so we move in the opposite direction.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 9,
+      "start": 71.8,
+      "end": 79.0,
+      "text": "The update rule is w becomes w minus eta times the gradient, where eta is the learning rate.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 10,
+      "start": 79.6,
+      "end": 86.4,
+      "text": "Choosing the learning rate is an art. Too small and training crawls along for thousands of steps.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 11,
+      "start": 87.0,
+      "end": 93.8,
+      "text": "Too large and the loss bounces around or even blows up to infinity instead of settling down.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 12,
+      "start": 94.4,
+      "end": 102.4,
+      "text": "A good habit is to plot the loss after every epoch. It should go down steadily and then flatten out.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 13,
+      "start": 103.0,
+      "end": 109.0,
+      "text": "Computing the gradient over the full dataset is expensive when you have millions of examples.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 14,
+      "start": 109.6,
+      "end": 116.4,
+      "text": "Stochastic gradient descent estimates it from a small random mini batch, which is noisy but much cheaper.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 15,
+      "start": 117.0,
+      "end": 123.8,
+      "text": "Features on very different scales make the bowl long and thin, and gradient descent zigzags across it.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 16,
+      "start": 124.4,
+      "end": 130.4,
+      "text": "The fix is to standardize each feature to mean zero and variance one before training.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 17,
+      "start": 131.0,
+      "end": 138.6,
+      "text": "Now the big danger. A model can fit the training data perfectly and still do badly on new data.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 18,
+      "start": 139.2,
+      "end": 146.0,
+      "text": "That is overfitting. The model memorized noise in the training set instead of learning the real pattern.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 19,
+      "start": 146.6,
+      "end": 153.8,
+      "text": "To detect it, hold out a validation set that the model never trains on, and watch its error.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 20,
+      "start": 154.4,
+      "end": 159.6,
+      "text": "When training error keeps falling but validation error starts rising, you are overfitting.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 21,
+      "start": 160.2,
+      "end": 167.8,
+      "text": "Regularization helps. Adding a penalty on the size of the weights, called ridge or L2, keeps the model simple.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 22,
+      "start": 168.4,
+      "end": 174.8,
+      "text": "There is a nice probabilistic view too. Minimizing squared error is maximum likelihood under Gaussian noise.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 23,
+      "start": 175.4,
+      "end": 183.0,
+      "text": "Homework two asks you to implement gradient descent from scratch in NumPy and compare it with the closed form.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    }
+  ],
+  "language": "en",
+  "language_probability": 1.0,
+  "duration": 183.0,
+  "model": "hand-written demo (scripts/build_retrieval_demo.py)"
+}

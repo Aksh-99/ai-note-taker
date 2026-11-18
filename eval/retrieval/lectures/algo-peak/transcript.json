@@ -1,0 +1,224 @@
+{
+  "segments": [
+    {
+      "id": 0,
+      "start": 0.0,
+      "end": 6.8,
+      "text": "Good morning everyone. This class is about efficient procedures for solving problems, and how we measure efficiency.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 1,
+      "start": 7.4,
+      "end": 15.8,
+      "text": "We will start with a toy problem called peak finding, because it shows the whole way of thinking in one example.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 2,
+      "start": 16.4,
+      "end": 25.6,
+      "text": "Picture a one dimensional array of numbers. A position is a peak if its value is at least as big as its neighbors.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 3,
+      "start": 26.2,
+      "end": 34.2,
+      "text": "Does a peak always exist? Yes, with this definition using greater than or equal, every array has at least one.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 4,
+      "start": 34.8,
+      "end": 42.8,
+      "text": "The obvious algorithm is to walk from left to right and stop at the first position that beats both neighbors.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 5,
+      "start": 43.4,
+      "end": 53.4,
+      "text": "In the worst case the peak is at the far right end, so we look at all n elements. That is linear time, order n.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 6,
+      "start": 54.0,
+      "end": 62.0,
+      "text": "Can we do better? Let's look at the middle element and compare it with the element just to its left.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 7,
+      "start": 62.6,
+      "end": 72.2,
+      "text": "If the left neighbor is bigger, then there must be a peak somewhere in the left half, so we throw away the right half.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 8,
+      "start": 72.8,
+      "end": 81.2,
+      "text": "Otherwise we check the right neighbor in the same way. If neither neighbor is bigger, the middle itself is a peak.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 9,
+      "start": 81.8,
+      "end": 89.0,
+      "text": "Each step cuts the problem in half. That is the same divide and conquer idea as binary search.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 10,
+      "start": 89.6,
+      "end": 98.4,
+      "text": "Write the running time as a recurrence. T of n equals T of n over two plus a constant amount of work.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 11,
+      "start": 99.0,
+      "end": 106.6,
+      "text": "Unroll it and you get a constant times log base two of n. So this version is logarithmic time.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 12,
+      "start": 107.2,
+      "end": 114.0,
+      "text": "To feel the difference, imagine ten million elements. The linear scan might look at all of them.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 13,
+      "start": 114.6,
+      "end": 121.4,
+      "text": "The halving method needs about twenty three comparisons. That gap only grows as the input gets bigger.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 14,
+      "start": 122.0,
+      "end": 128.4,
+      "text": "We describe this with asymptotic notation. Big O gives an upper bound and ignores constant factors.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 15,
+      "start": 129.0,
+      "end": 135.8,
+      "text": "Big Theta means the bound is tight from above and below. Big Omega is the lower bound.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 16,
+      "start": 136.4,
+      "end": 144.0,
+      "text": "Now the two dimensional version. You have a grid of numbers and a peak must beat its four neighbors.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 17,
+      "start": 144.6,
+      "end": 151.8,
+      "text": "A greedy ascent, always stepping to a bigger neighbor, works but can wander through most of the grid.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 18,
+      "start": 152.4,
+      "end": 160.4,
+      "text": "A better idea is to pick the middle column, find its maximum, and compare with the left and right neighbors.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 19,
+      "start": 161.0,
+      "end": 169.8,
+      "text": "Then recurse on the half that contains the bigger neighbor. That gives n log n time for an n by n grid.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 20,
+      "start": 170.4,
+      "end": 178.4,
+      "text": "Be careful though. A tempting variant that picks a peak inside the column instead of the maximum is actually wrong.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 21,
+      "start": 179.0,
+      "end": 185.4,
+      "text": "Correctness matters as much as speed. A fast algorithm that returns the wrong answer is useless.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 22,
+      "start": 186.0,
+      "end": 192.8,
+      "text": "Problem set one is posted tonight, and it asks you to prove the two dimensional algorithm correct.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 23,
+      "start": 193.4,
+      "end": 198.6,
+      "text": "Office hours start this week. See the course website for times and rooms.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    }
+  ],
+  "language": "en",
+  "language_probability": 1.0,
+  "duration": 198.6,
+  "model": "hand-written demo (scripts/build_retrieval_demo.py)"
+}

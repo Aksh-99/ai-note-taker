@@ -1,0 +1,224 @@
+{
+  "segments": [
+    {
+      "id": 0,
+      "start": 0.0,
+      "end": 6.0,
+      "text": "Welcome to probability. Our goal is to build a precise language for talking about uncertainty.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 1,
+      "start": 6.6,
+      "end": 13.4,
+      "text": "Every probability model starts with a sample space, the set of all possible outcomes of an experiment.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 2,
+      "start": 14.0,
+      "end": 20.0,
+      "text": "The outcomes have to be mutually exclusive and collectively exhaustive. Exactly one of them happens.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 3,
+      "start": 20.6,
+      "end": 27.8,
+      "text": "If you roll a four sided die twice, the sample space is the grid of sixteen ordered pairs.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 4,
+      "start": 28.4,
+      "end": 36.0,
+      "text": "An event is any subset of the sample space, like the event that the first roll is a three.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 5,
+      "start": 36.6,
+      "end": 42.6,
+      "text": "Probabilities obey three axioms. First, nonnegativity. The probability of any event is at least zero.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 6,
+      "start": 43.2,
+      "end": 48.0,
+      "text": "Second, normalization. The probability of the entire sample space is exactly one.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 7,
+      "start": 48.6,
+      "end": 55.8,
+      "text": "Third, additivity. If two events are disjoint, the probability of their union is the sum of their probabilities.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 8,
+      "start": 56.4,
+      "end": 63.2,
+      "text": "Everything else follows from these. For instance the probability of an event plus its complement equals one.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 9,
+      "start": 63.8,
+      "end": 72.2,
+      "text": "When all outcomes are equally likely, the probability of an event is the number of its outcomes divided by the total.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 10,
+      "start": 72.8,
+      "end": 81.6,
+      "text": "So the chance that both rolls of the four sided die are equal is four out of sixteen, which is one quarter.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 11,
+      "start": 82.2,
+      "end": 90.2,
+      "text": "Continuous sample spaces need more care. Throw a dart at a unit square and every single point has probability zero.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 12,
+      "start": 90.8,
+      "end": 98.8,
+      "text": "There we measure probability as area. The chance of landing in a region is just the area of that region.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 13,
+      "start": 99.4,
+      "end": 105.8,
+      "text": "Now conditional probability. Suppose we learn that some event B happened. How should our beliefs change?",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 14,
+      "start": 106.4,
+      "end": 114.4,
+      "text": "The probability of A given B is the probability of A and B together, divided by the probability of B.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 15,
+      "start": 115.0,
+      "end": 123.0,
+      "text": "Think of it as shrinking the universe to B and renormalizing so that everything inside B adds up to one.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 16,
+      "start": 123.6,
+      "end": 132.4,
+      "text": "Multiplying it out gives the multiplication rule. P of A and B equals P of B times P of A given B.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 17,
+      "start": 133.0,
+      "end": 140.2,
+      "text": "The total probability theorem splits the sample space into pieces and adds up the contributions from each piece.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 18,
+      "start": 140.8,
+      "end": 146.8,
+      "text": "Combine these and you get Bayes rule, which lets us reverse the direction of conditioning.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 19,
+      "start": 147.4,
+      "end": 156.2,
+      "text": "Classic example. A test for a rare disease is ninety nine percent accurate, but only one person in a thousand has it.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 20,
+      "start": 156.8,
+      "end": 164.4,
+      "text": "If you test positive, Bayes rule says the chance you actually have the disease is only about nine percent.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 21,
+      "start": 165.0,
+      "end": 171.0,
+      "text": "The reason is that false positives from the huge healthy population outnumber the true positives.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 22,
+      "start": 171.6,
+      "end": 179.2,
+      "text": "This kind of reasoning, updating beliefs with evidence, is the core of inference and of much of machine learning.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 23,
+      "start": 179.8,
+      "end": 184.2,
+      "text": "Next lecture we cover independence. Recitation problems are on the website.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    }
+  ],
+  "language": "en",
+  "language_probability": 1.0,
+  "duration": 184.2,
+  "model": "hand-written demo (scripts/build_retrieval_demo.py)"
+}

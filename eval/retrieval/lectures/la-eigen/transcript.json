@@ -1,0 +1,224 @@
+{
+  "segments": [
+    {
+      "id": 0,
+      "start": 0.0,
+      "end": 8.0,
+      "text": "Okay, welcome back. Today is all about eigenvalues and eigenvectors, which are probably the most useful idea in this course.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 1,
+      "start": 8.6,
+      "end": 17.4,
+      "text": "Here is the question we want to answer. When does a matrix A send a vector x to a multiple of itself?",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 2,
+      "start": 18.0,
+      "end": 26.0,
+      "text": "Most vectors change direction when you multiply them by A. The special ones that keep their direction are called eigenvectors.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 3,
+      "start": 26.6,
+      "end": 35.0,
+      "text": "So the equation is A x equals lambda x, where lambda is just a number, and that number is the eigenvalue.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 4,
+      "start": 35.6,
+      "end": 43.2,
+      "text": "If lambda is two, the vector gets stretched to twice its length. If lambda is negative, it flips around.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 5,
+      "start": 43.8,
+      "end": 52.6,
+      "text": "How do we actually find them? Move everything to one side and you get A minus lambda I, times x, equals zero.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 6,
+      "start": 53.2,
+      "end": 62.0,
+      "text": "We want a nonzero x in the null space of A minus lambda I, which means that matrix has to be singular.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 7,
+      "start": 62.6,
+      "end": 71.4,
+      "text": "And a matrix is singular exactly when its determinant is zero. So we solve determinant of A minus lambda I equals zero.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 8,
+      "start": 72.0,
+      "end": 80.4,
+      "text": "That equation is a polynomial in lambda, called the characteristic polynomial. For an n by n matrix it has degree n.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 9,
+      "start": 81.0,
+      "end": 87.8,
+      "text": "Let's do a two by two example. Take the matrix with rows four one and two three.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 10,
+      "start": 88.4,
+      "end": 95.6,
+      "text": "The determinant of A minus lambda I is lambda squared minus seven lambda plus ten, which factors nicely.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 11,
+      "start": 96.2,
+      "end": 103.4,
+      "text": "So the eigenvalues are five and two. Plug each one back in to find the eigenvectors by elimination.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 12,
+      "start": 104.0,
+      "end": 113.2,
+      "text": "Here is a quick check you should always do. The sum of the eigenvalues equals the trace, the sum of the diagonal entries.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 13,
+      "start": 113.8,
+      "end": 122.2,
+      "text": "Four plus three is seven, and five plus two is seven. Good. And the product of the eigenvalues equals the determinant.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 14,
+      "start": 122.8,
+      "end": 128.8,
+      "text": "Now, why do we care? Because eigenvectors make powers of a matrix easy to compute.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 15,
+      "start": 129.4,
+      "end": 139.8,
+      "text": "If x is an eigenvector, then A to the hundredth times x is just lambda to the hundredth times x. No multiplying matrices a hundred times.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 16,
+      "start": 140.4,
+      "end": 148.4,
+      "text": "If we have n independent eigenvectors, we can put them in the columns of a matrix S and diagonalize A.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 17,
+      "start": 149.0,
+      "end": 156.2,
+      "text": "That gives A equals S times Lambda times S inverse, where Lambda is the diagonal matrix of eigenvalues.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 18,
+      "start": 156.8,
+      "end": 164.8,
+      "text": "Not every matrix can be diagonalized. A rotation of the plane by ninety degrees has no real eigenvectors at all.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 19,
+      "start": 165.4,
+      "end": 173.8,
+      "text": "Its eigenvalues turn out to be the complex numbers i and minus i, which makes sense since every vector gets turned.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 20,
+      "start": 174.4,
+      "end": 181.6,
+      "text": "Symmetric matrices are the best case. Their eigenvalues are always real and their eigenvectors can be chosen perpendicular.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 21,
+      "start": 182.2,
+      "end": 189.8,
+      "text": "This is the spectral theorem, and it is the reason principal component analysis works, which we will see later.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 22,
+      "start": 190.4,
+      "end": 198.0,
+      "text": "Markov matrices are another nice family. They always have an eigenvalue equal to one, which gives the steady state.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    },
+    {
+      "id": 23,
+      "start": 198.6,
+      "end": 204.2,
+      "text": "For next time, read section six point two and try the problems on diagonalization.",
+      "avg_logprob": -0.2,
+      "no_speech_prob": 0.01,
+      "words": []
+    }
+  ],
+  "language": "en",
+  "language_probability": 1.0,
+  "duration": 204.2,
+  "model": "hand-written demo (scripts/build_retrieval_demo.py)"
+}

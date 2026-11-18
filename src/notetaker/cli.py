@@ -1050,6 +1050,89 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="CASSETTE",
         help="answer the LLM call from a recorded cassette (offline)",
     )
+    er = subcommands.add_parser(
+        "eval-retrieval",
+        help="score search on a labeled question set (recall@k and MRR)",
+        description=(
+            "Run every question in a labeled set through search and check how "
+            "high the passage containing the answer ranks. Answers are labeled "
+            "as time spans in a lecture, so any passage overlapping the span "
+            "counts. Either evaluates an existing index (--index) or builds "
+            "one in memory from the transcripts the question file points at, "
+            "once per --embedder and --max-words value, and compares them."
+        ),
+    )
+    er.add_argument(
+        "-q",
+        "--questions",
+        type=Path,
+        default=Path("eval/retrieval/questions.json"),
+        help="labeled question file (default: eval/retrieval/questions.json)",
+    )
+    # A mutually exclusive group: argparse rejects a command that gives both.
+    er_source = er.add_mutually_exclusive_group()
+    er_source.add_argument(
+        "-i",
+        "--index",
+        type=Path,
+        default=None,
+        help="evaluate this existing index folder instead of building one",
+    )
+    er_source.add_argument(
+        "--transcripts",
+        type=Path,
+        default=None,
+        help="transcripts folder to index (default: 'corpus' in the question file)",
+    )
+    er.add_argument(
+        "--embedder",
+        action="append",
+        default=None,
+        help=(
+            "embedding model to test, repeat to compare several (e.g. "
+            "--embedder hashing-512 --embedder "
+            "sentence-transformers/all-MiniLM-L6-v2; default: "
+            "NOTETAKER_EMBEDDING_MODEL)"
+        ),
+    )
+    er.add_argument(
+        "--titles",
+        type=Path,
+        default=None,
+        help="JSON file mapping lecture id to title (default: from the question file)",
+    )
+    er.add_argument(
+        "--max-words",
+        type=int,
+        nargs="+",
+        default=[120],
+        help="passage size(s) in words; give several to compare (default: 120)",
+    )
+    er.add_argument(
+        "--max-seconds",
+        type=float,
+        default=90.0,
+        help="maximum seconds of speech per passage (default: 90)",
+    )
+    er.add_argument(
+        "-k",
+        type=int,
+        nargs="+",
+        default=[1, 3, 5, 10],
+        help="cutoffs for recall@k; the largest is the MRR depth (default: 1 3 5 10)",
+    )
+    er.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        help="write a Markdown report here and the full JSON next to it",
+    )
+    er.add_argument(
+        "--show-misses",
+        action="store_true",
+        help="list the questions whose answer was not in the top 5",
+    )
     return parser
 
 
@@ -2342,6 +2425,97 @@ def run_ask(args: argparse.Namespace, client=None) -> int:
     return 0
 
 
+def run_eval_retrieval(args: argparse.Namespace) -> int:
+    """Handle `notetaker eval-retrieval`: labeled questions in, recall@k and MRR out."""
+    from notetaker.embeddings import EmbeddingError
+    from notetaker.ingest import IngestError
+    from notetaker.retrieval_eval import (
+        RetrievalEvalError,
+        build_store,
+        evaluate,
+        load_corpus_titles,
+        load_questions,
+        to_json,
+        to_markdown,
+    )
+    from notetaker.vectorstore import VectorStore, VectorStoreError
+
+    try:
+        questions = load_questions(args.questions)
+        print(f"{len(questions.questions)} labeled questions from {args.questions}")
+        reports = []
+        if args.index is not None:
+            if args.embedder:
+                print(
+                    "Note: --embedder is ignored with --index (it keeps its own model)"
+                )
+            store = VectorStore.load(args.index)
+            reports.append(
+                evaluate(
+                    store, questions, ks=args.k, settings={"index": str(args.index)}
+                )
+            )
+        else:
+            folder = args.transcripts or questions.corpus
+            if folder is None:
+                print("Error: give --index or --transcripts (no corpus in the file)")
+                return 1
+            titles = load_corpus_titles(questions, args.titles)
+            # One run per (embedder, passage size) pair. [None] means the
+            # model from settings, the same default as `notetaker ingest`.
+            for name in args.embedder or [None]:
+                for max_words in args.max_words:
+                    store = build_store(
+                        folder,
+                        embedder_name=name,
+                        titles=titles,
+                        max_words=max_words,
+                        max_seconds=args.max_seconds,
+                    )
+                    settings = {"max_words": max_words, "max_seconds": args.max_seconds}
+                    reports.append(
+                        evaluate(store, questions, ks=args.k, settings=settings)
+                    )
+    except (
+        RetrievalEvalError,
+        IngestError,
+        VectorStoreError,
+        EmbeddingError,
+        ValueError,
+    ) as error:
+        print(f"Error: {error}")
+        return 1
+
+    ks = reports[0].ks
+    for rep in reports:
+        recall = "  ".join(f"R@{k}={rep.recall(k):.3f}" for k in ks)
+        print(
+            f"  {rep.label} ({rep.n_passages} passages): {recall}  MRR={rep.mrr():.3f}"
+        )
+    # Chance only depends on the passage count, so print it once per count.
+    for n, rep in {rep.n_passages: rep for rep in reports}.items():
+        chance = "  ".join(f"R@{k}={rep.chance_recall[k]:.3f}" for k in ks)
+        print(f"  chance ({n} passages): {chance}  MRR={rep.chance_mrr:.3f}")
+
+    if args.show_misses:
+        k_show = 5 if 5 in ks else max(ks)
+        for rep in reports:
+            misses = rep.misses(k_show)
+            print(f"Not fully found in the top {k_show} by {rep.label}: {len(misses)}")
+            for res in misses:
+                rank = res.first_rank or "-"
+                print(f"  {res.question.id} (first relevant rank {rank}):")
+                print(f"    {res.question.question}")
+
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(to_markdown(reports, questions), encoding="utf-8")
+        json_path = args.output.with_suffix(".json")
+        json_path.write_text(to_json(reports, questions), encoding="utf-8")
+        print(f"Wrote {args.output} and {json_path}")
+    return 0
+
+
 def run_agent(args: argparse.Namespace, client=None) -> int:
     """Handle `notetaker agent`: the whole pipeline in one command.
 
@@ -2514,6 +2688,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_ingest(args)
     if args.command == "ask":
         return run_ask(args)
+    if args.command == "eval-retrieval":
+        return run_eval_retrieval(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0
