@@ -81,6 +81,11 @@ from notetaker.config import LLMProvider, WhisperModel, get_settings
 # not import langgraph, which keeps every other command fast to start.
 STEP_NAMES = ("notes", "concepts", "flashcards", "quiz", "tasks")
 
+# Ranking methods for `notetaker eval-retrieval --retriever`. Same trick:
+# a literal checked against hybrid.RETRIEVERS in the tests, so the parser
+# does not import FAISS.
+RETRIEVERS = ("vector", "bm25", "hybrid", "hybrid-linear")
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser.
@@ -1132,6 +1137,29 @@ def build_parser() -> argparse.ArgumentParser:
         "--show-misses",
         action="store_true",
         help="list the questions whose answer was not in the top 5",
+    )
+    er.add_argument(
+        "--retriever",
+        nargs="+",
+        choices=RETRIEVERS,
+        default=["vector"],
+        help=(
+            "ranking method(s) to compare: vector (embeddings), bm25 (keywords), "
+            "hybrid (both, fused by reciprocal rank) or hybrid-linear (both, "
+            "weighted sum of scores); default: vector"
+        ),
+    )
+    er.add_argument(
+        "--alpha",
+        type=float,
+        default=0.5,
+        help="hybrid-linear weight on the vector score, 0 to 1 (default: 0.5)",
+    )
+    er.add_argument(
+        "--rrf-c",
+        type=float,
+        default=60.0,
+        help="constant c in the RRF formula 1 / (c + rank) (default: 60)",
     )
     return parser
 
@@ -2428,6 +2456,7 @@ def run_ask(args: argparse.Namespace, client=None) -> int:
 def run_eval_retrieval(args: argparse.Namespace) -> int:
     """Handle `notetaker eval-retrieval`: labeled questions in, recall@k and MRR out."""
     from notetaker.embeddings import EmbeddingError
+    from notetaker.hybrid import make_retriever
     from notetaker.ingest import IngestError
     from notetaker.retrieval_eval import (
         RetrievalEvalError,
@@ -2440,6 +2469,11 @@ def run_eval_retrieval(args: argparse.Namespace) -> int:
     )
     from notetaker.vectorstore import VectorStore, VectorStoreError
 
+    # Options only hybrid retrievers use; make_retriever ignores them otherwise.
+    hybrid_options = {}
+    if any(kind.startswith("hybrid") for kind in args.retriever):
+        hybrid_options = {"alpha": args.alpha, "rrf_c": args.rrf_c}
+
     try:
         questions = load_questions(args.questions)
         print(f"{len(questions.questions)} labeled questions from {args.questions}")
@@ -2450,11 +2484,12 @@ def run_eval_retrieval(args: argparse.Namespace) -> int:
                     "Note: --embedder is ignored with --index (it keeps its own model)"
                 )
             store = VectorStore.load(args.index)
-            reports.append(
-                evaluate(
-                    store, questions, ks=args.k, settings={"index": str(args.index)}
+            for kind in args.retriever:
+                retriever = make_retriever(store, kind, **hybrid_options)
+                settings = {"index": str(args.index), "retriever": kind}
+                reports.append(
+                    evaluate(retriever, questions, ks=args.k, settings=settings)
                 )
-            )
         else:
             folder = args.transcripts or questions.corpus
             if folder is None:
@@ -2463,6 +2498,9 @@ def run_eval_retrieval(args: argparse.Namespace) -> int:
             titles = load_corpus_titles(questions, args.titles)
             # One run per (embedder, passage size) pair. [None] means the
             # model from settings, the same default as `notetaker ingest`.
+            # Each pair is then scored with every --retriever. BM25 ignores
+            # the embedder, so it is scored once per passage size only.
+            bm25_done: set[int] = set()
             for name in args.embedder or [None]:
                 for max_words in args.max_words:
                     store = build_store(
@@ -2472,10 +2510,20 @@ def run_eval_retrieval(args: argparse.Namespace) -> int:
                         max_words=max_words,
                         max_seconds=args.max_seconds,
                     )
-                    settings = {"max_words": max_words, "max_seconds": args.max_seconds}
-                    reports.append(
-                        evaluate(store, questions, ks=args.k, settings=settings)
-                    )
+                    for kind in args.retriever:
+                        if kind == "bm25":
+                            if max_words in bm25_done:
+                                continue
+                            bm25_done.add(max_words)
+                        retriever = make_retriever(store, kind, **hybrid_options)
+                        settings = {
+                            "max_words": max_words,
+                            "max_seconds": args.max_seconds,
+                            "retriever": kind,
+                        }
+                        reports.append(
+                            evaluate(retriever, questions, ks=args.k, settings=settings)
+                        )
     except (
         RetrievalEvalError,
         IngestError,

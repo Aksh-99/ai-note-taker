@@ -106,7 +106,10 @@ class SearchHit:
     """One search result: a passage, its similarity to the query and its rank."""
 
     passage: Passage
-    score: float  # cosine similarity in [-1, 1]; higher is more similar
+    # Higher is more similar. For VectorStore this is cosine similarity in
+    # [-1, 1]; BM25Index and HybridRetriever (Step 5.5) put their own score
+    # here (BM25 value, fused score), so only compare scores from one retriever.
+    score: float
     rank: int  # 1 = best match
 
 
@@ -206,6 +209,11 @@ class VectorStore:
     @property
     def dim(self) -> int:
         return self._index.d
+
+    @property
+    def name(self) -> str:
+        """Retriever name for reports: the embedding model (see hybrid.Retriever)."""
+        return self.embedder.name
 
     def lectures(self) -> list[str]:
         """Lecture ids in the index, in the order they were added."""

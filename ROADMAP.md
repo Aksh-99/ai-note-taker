@@ -46,7 +46,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 5.2 Ingest command: index all transcripts in a folder
 - [x] 5.3 Ask command: answer questions with citations to lecture + timestamp
 - [x] 5.4 Retrieval eval: small labeled question set, recall@k and MRR
-- [ ] 5.5 Hybrid search (BM25 + vectors) and compare against 5.4 baseline
+- [x] 5.5 Hybrid search (BM25 + vectors) and compare against 5.4 baseline
 
 ## Phase 6: Model improvement
 - [ ] 6.1 Build fine-tuning dataset from eval-set audio (train/val split, no leakage)

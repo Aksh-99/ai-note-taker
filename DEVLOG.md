@@ -4,6 +4,25 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-18 · Step 5.5: Hybrid search (BM25 + vectors) vs the 5.4 baseline
+
+**What I did**
+- Added `src/notetaker/bm25.py`: BM25 keyword search written from the formula with numpy and an inverted index (term to the passages containing it). No model, nothing saved to disk: it is rebuilt from the passages in milliseconds. It has the same `search(query, k, lecture_ids)` method and returns the same `SearchHit`s as `VectorStore`, so anything that searches can use either
+- Added `src/notetaker/hybrid.py`: two fusion methods as small pure functions, `reciprocal_rank_fusion` (RRF, c = 60) and `linear_fusion` (alpha times min-max scaled vector score plus 1 - alpha times scaled BM25 score), and a `HybridRetriever` that runs vector search and BM25 over the same passages (top 50 each) and fuses them. A `Retriever` Protocol names the shape all three share, and `make_retriever(store, "vector" | "bm25" | "hybrid" | "hybrid-linear")` builds one by name
+- `notetaker eval-retrieval` now takes `--retriever` (several to compare), `--alpha` and `--rrf-c`, also with `--index`. BM25 ignores the embedder, so it is scored once per passage size. The report's first column is now "Retriever"
+- New report `reports/hybrid.md` (the 5.4 report is unchanged as the baseline). At 120-word passages: baseline hashing recall@5 = 0.837, MRR = 0.717; BM25 0.913 / 0.782; RRF hybrid 0.875 / 0.754 (best recall@10, 0.962); linear hybrid at alpha 0.5 0.837 / 0.722. An alpha sweep only matched BM25 at alpha 0.2 to 0.3
+- 42 new tests in `tests/test_bm25.py` and `tests/test_hybrid.py`, all offline: idf and scores checked against hand computation, saturation, length penalty and b = 0, tie-breaking, lecture filter, RRF and linear fusion against the formulas, the retriever, the eval on the demo set and the CLI. `make check` passes (887 tests, lint clean)
+- README: new "Hybrid search" section
+- Honest note: the vector side is still the model-free hashing embedder because the sandbox cannot download MiniLM. The command at the top of `reports/hybrid.md` produces the MiniLM + BM25 comparison locally
+
+**How it works**
+BM25 scores a passage by summing, over the question's words, idf(word) times a term-frequency part. idf = ln(1 + (N - n + 0.5) / (n + 0.5)) is large for words that appear in few passages, so a rare word like "Bellman" counts far more than "matrix". The tf part, tf (k1 + 1) / (tf + k1 * norm), rises with each repeat but levels off at k1 + 1, so the first mention matters most, and norm grows with passage length so a long passage does not win just by containing more words. Hybrid search combines two ranked lists. RRF ignores raw scores and gives each passage 1 / (60 + rank) from each list: this works because BM25 scores (0 to 20+) and cosine similarities (-1 to 1) are on different scales, while ranks are always comparable, so there is nothing to tune. Linear fusion rescales both score lists to [0, 1] and takes a weighted average; it can be better when tuned but the weight is data dependent, which the alpha sweep showed. The key finding to explain: fusion helps only when the two retrievers make different mistakes. Hashing and BM25 are both word matchers, so fusing them did not beat BM25 alone at top 5; BM25 won because its idf weighting picks out the rare words a paraphrase keeps. The interesting pairing, a neural embedder (meaning) plus BM25 (exact rare words), is set up and one command away.
+
+**Next up**
+Step 6.1: Build the fine-tuning dataset from the eval-set audio (train/val split, no leakage).
+
+---
+
 ## 2026-11-17 · Step 5.4: Retrieval eval (labeled questions, recall@k and MRR)
 
 **What I did**

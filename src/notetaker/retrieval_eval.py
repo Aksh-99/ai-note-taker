@@ -16,6 +16,12 @@ Labels are time spans, not passage ids
     passage), and comparing passage sizes is exactly the kind of experiment
     this eval is for. A time span stays correct whatever the chunking.
 
+Any retriever can be scored (Step 5.5)
+    `evaluate` only needs `.search`, `.passages`, `.lectures()` and `.name`,
+    so the same questions score vector search, BM25 and hybrid search
+    (hybrid.py). `notetaker eval-retrieval --retriever vector bm25 hybrid`
+    puts them side by side in one table.
+
     Two intervals [a, b] and [c, d] overlap when a < d and c < b. Touching at
     a single point (b == c) does not count, so a passage that ends exactly
     where the answer starts is not given credit.
@@ -68,6 +74,7 @@ from pathlib import Path
 from typing import Any
 
 from notetaker.embeddings import Embedder, make_embedder
+from notetaker.hybrid import Retriever
 from notetaker.ingest import assign_lecture_ids, find_transcripts, load_titles
 from notetaker.transcribe import Transcript
 from notetaker.vectorstore import (
@@ -411,7 +418,7 @@ class RetrievalReport:
         }
 
 
-def check_labels(store: VectorStore, questions: QuestionSet) -> None:
+def check_labels(store: Retriever, questions: QuestionSet) -> None:
     """Fail loudly if labels point at lectures or times the index does not have.
 
     Without this, a typo in a lecture id (or evaluating against the wrong
@@ -439,12 +446,16 @@ def check_labels(store: VectorStore, questions: QuestionSet) -> None:
 
 
 def evaluate(
-    store: VectorStore,
+    store: Retriever,
     questions: QuestionSet,
     ks: Sequence[int] = DEFAULT_KS,
     settings: dict[str, Any] | None = None,
 ) -> RetrievalReport:
-    """Run every question through `store.search` and score the rankings."""
+    """Run every question through `store.search` and score the rankings.
+
+    `store` can be any retriever (hybrid.Retriever): a VectorStore, a
+    BM25Index or a HybridRetriever. The report is labeled with its `name`.
+    """
     ks = tuple(sorted(set(ks)))
     if not ks or ks[0] <= 0:
         raise ValueError(f"every k must be a positive integer, got {list(ks)}")
@@ -475,7 +486,7 @@ def evaluate(
     chance_mrr_value = _mean(chance_mrr(n, r.relevant_in_index, depth) for r in results)
 
     return RetrievalReport(
-        embedder=store.embedder.name,
+        embedder=store.name,
         ks=ks,
         n_passages=n,
         n_lectures=len(store.lectures()),
@@ -573,7 +584,7 @@ def to_markdown(reports: list[RetrievalReport], questions: QuestionSet) -> str:
         "",
         "## Overall",
         "",
-        "| Embedder | Passages | "
+        "| Retriever | Passages | "
         + " | ".join(f"recall@{k}" for k in ks)
         + " | MRR | ms / query |",
         "|---|---|" + "---|" * len(ks) + "---|---|",
