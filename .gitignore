@@ -36,6 +36,8 @@ env/
 models/
 data/raw/
 data/audio/
+# Fine-tuning clips and their labels are generated from data/raw (Step 6.1)
+data/finetune/
 
 # Notebooks checkpoints and OS / editor clutter
 .ipynb_checkpoints/

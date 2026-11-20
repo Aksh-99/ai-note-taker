@@ -49,7 +49,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 5.5 Hybrid search (BM25 + vectors) and compare against 5.4 baseline
 
 ## Phase 6: Model improvement
-- [ ] 6.1 Build fine-tuning dataset from eval-set audio (train/val split, no leakage)
+- [x] 6.1 Build fine-tuning dataset from eval-set audio (train/val split, no leakage)
 - [ ] 6.2 LoRA fine-tune Whisper small on technical lecture audio (Colab/Kaggle free GPU notebook)
 - [ ] 6.3 Evaluate fine-tuned vs base: WER + technical-term recall, write up in `reports/finetune.md`
 - [ ] 6.4 int8 quantization (CTranslate2) of the best model, speed/accuracy tradeoff table

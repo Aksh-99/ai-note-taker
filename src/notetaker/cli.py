@@ -63,6 +63,10 @@ Commands so far:
                           answer a question from the indexed lectures with
                           numbered citations to lecture + timestamp;
                           --no-llm returns the best passage verbatim
+    notetaker finetune-data
+                          cut the downloaded eval lectures into <= 30 s labeled
+                          clips for Whisper fine-tuning, split train/val/test
+                          by whole lecture so nothing leaks (data/finetune/)
 """
 
 import argparse
@@ -1161,6 +1165,97 @@ def build_parser() -> argparse.ArgumentParser:
         default=60.0,
         help="constant c in the RRF formula 1 / (c + rank) (default: 60)",
     )
+
+    fd = subcommands.add_parser(
+        "finetune-data",
+        help="build a Whisper fine-tuning dataset from the eval lectures",
+        description=(
+            "Cut each downloaded eval lecture (see `notetaker evalset`) into "
+            "clips of at most 30 seconds at caption boundaries, label each "
+            "clip with its caption text, and split train / val / test by "
+            "whole lecture (or whole course) so no lecture, speaker or "
+            "sentence leaks into the test set. Writes the Hugging Face "
+            "audiofolder layout: <out>/<split>/metadata.jsonl + WAV clips."
+        ),
+    )
+    fd.add_argument(
+        "--eval-dir",
+        type=Path,
+        default=None,
+        help="downloaded lectures (default: <NOTETAKER_DATA_DIR>/raw/ocw)",
+    )
+    fd.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="where to write the dataset (default: <NOTETAKER_DATA_DIR>/finetune)",
+    )
+    fd.add_argument(
+        "--group-by",
+        choices=("lecture", "course"),
+        default="lecture",
+        help="keep whole lectures or whole courses on one side (default: lecture)",
+    )
+    fd.add_argument(
+        "--val",
+        nargs="+",
+        default=None,
+        metavar="ID",
+        help="put these lecture ids in the validation split",
+    )
+    fd.add_argument(
+        "--test",
+        nargs="+",
+        default=None,
+        metavar="ID",
+        help="put these lecture ids in the test split",
+    )
+    fd.add_argument(
+        "--val-fraction",
+        type=float,
+        default=0.25,
+        help="share of lectures for validation when --val is not given (0.25)",
+    )
+    fd.add_argument(
+        "--test-fraction",
+        type=float,
+        default=0.25,
+        help="share of lectures for testing when --test is not given (0.25)",
+    )
+    fd.add_argument(
+        "--seed", type=int, default=0, help="changes the random split (default: 0)"
+    )
+    fd.add_argument(
+        "--max-seconds",
+        type=float,
+        default=30.0,
+        help="longest clip, at most Whisper's 30 s window (default: 30)",
+    )
+    fd.add_argument(
+        "--min-seconds",
+        type=float,
+        default=1.0,
+        help="drop clips shorter than this (default: 1)",
+    )
+    fd.add_argument(
+        "--max-gap",
+        type=float,
+        default=1.5,
+        help="start a new clip after a silence longer than this (default: 1.5 s)",
+    )
+    fd.add_argument(
+        "--pad",
+        type=float,
+        default=0.2,
+        help="widen each clip by up to this much silence per side (default: 0.2 s)",
+    )
+    fd.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="only read the captions and show the split; write nothing",
+    )
+    fd.add_argument("--force", action="store_true", help="replace an existing dataset")
     return parser
 
 
@@ -2689,6 +2784,52 @@ def run_agent(args: argparse.Namespace, client=None) -> int:
     return 0 if result.ok else 1
 
 
+def run_finetune_data(args: argparse.Namespace) -> int:
+    """Handle `notetaker finetune-data`: build the fine-tuning dataset."""
+    from notetaker.finetune_data import (
+        FinetuneDataError,
+        build_dataset,
+        summary_markdown,
+    )
+
+    try:
+        settings = get_settings()
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+    eval_dir = args.eval_dir or settings.data_dir / "raw" / "ocw"
+    out_dir = args.output_dir or settings.data_dir / "finetune"
+    action = "Planning" if args.dry_run else "Building"
+    print(f"{action} fine-tuning dataset from {eval_dir}", flush=True)
+    try:
+        summary = build_dataset(
+            eval_dir,
+            out_dir,
+            group_by=args.group_by,
+            val=args.val,
+            test=args.test,
+            val_fraction=args.val_fraction,
+            test_fraction=args.test_fraction,
+            seed=args.seed,
+            max_seconds=args.max_seconds,
+            min_seconds=args.min_seconds,
+            max_gap=args.max_gap,
+            pad=args.pad,
+            sample_rate=settings.sample_rate,
+            dry_run=args.dry_run,
+            force=args.force,
+        )
+    except (FinetuneDataError, ValueError, AudioError) as error:
+        print(f"Error: {error}")
+        return 1
+    print(summary_markdown(summary))
+    if args.dry_run:
+        print("Dry run: nothing was written.")
+    else:
+        print(f"Wrote {out_dir / 'dataset.json'} and train/val/test clips")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -2738,6 +2879,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_ask(args)
     if args.command == "eval-retrieval":
         return run_eval_retrieval(args)
+    if args.command == "finetune-data":
+        return run_finetune_data(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

@@ -312,5 +312,17 @@ notetaker eval-retrieval --embedder hashing-512 \
 
 Results are in [reports/hybrid.md](reports/hybrid.md). On the demo set BM25 alone raises recall@5 from 0.84 to 0.91 over the word-hashing baseline, mostly on paraphrase questions. Fusing hashing with BM25 does not add more, because both are word matchers; the comparison that matters, MiniLM + BM25, needs a local run (command in the report).
 
+### Fine-tuning data (Phase 6, in progress)
+
+`notetaker finetune-data` turns the downloaded eval lectures into a Whisper training set: it glues caption cues into clips of at most 30 seconds (Whisper's input window), labels each clip with its caption text (sound tags and speaker labels removed, case and punctuation kept), and splits train / val / test by **whole lecture**, so no lecture, speaker or sentence leaks from training into the test set. `--group-by course` keeps every lecture of a course on one side.
+
+```bash
+notetaker evalset                         # download audio + captions first
+notetaker finetune-data --dry-run         # show the split, write nothing
+notetaker finetune-data --test mit-6.041-lec01 --val mit-6.034-lec01
+```
+
+The output in `data/finetune/` (gitignored) uses the Hugging Face audiofolder layout (`<split>/metadata.jsonl` plus WAV clips), so `datasets.load_dataset("audiofolder", data_dir="data/finetune")` loads it directly. `dataset.json` records which lecture went where and how many clips and hours each split has.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

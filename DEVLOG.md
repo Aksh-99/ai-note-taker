@@ -4,6 +4,28 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-19 · Step 6.1: Fine-tuning dataset from the eval-set audio (train/val split, no leakage)
+
+**What I did**
+- Added `src/notetaker/finetune_data.py` and a new command, `notetaker finetune-data`. It reads the lectures downloaded by `notetaker evalset` (`audio.flac` + `reference.json`), glues neighbouring caption cues into clips of at most 30 seconds, labels each clip with its caption text, and writes `<out>/<split>/metadata.jsonl` plus one WAV per clip, the Hugging Face "audiofolder" layout that Step 6.2's Colab notebook can load in one line
+- Labels drop sound tags and speaker labels (reusing `strip_caption_markup` from Step 2.2) but keep case and punctuation, because Whisper is trained to write cased, punctuated text
+- Clips are cut at long silences (`--max-gap`, default 1.5 s) and padded by up to 0.2 s into the surrounding silence, never more than half the gap, so padding cannot pull in a word from the next clip. Single cues over 30 s, clips under 1 s, empty cues and clips past the end of the audio are dropped and counted
+- Split by whole lecture (default) or whole course (`--group-by course`), never by clip. Lectures can be named (`--test`, `--val`) or assigned from fractions (25% / 25% of lectures by default) using a hash of "seed:lecture id", so the split is reproducible and adding a lecture does not reshuffle the old ones
+- An independent leakage check runs on the final clips: the same lecture or group in two splits is an error that stops the build; a sentence of 8+ words appearing (after normalization) in two splits is a warning. It runs on the captions first, so problems show up before any slow audio work
+- `--dry-run` reads only the captions and prints the split table without loading audio or writing anything. `dataset.json` records the settings, which lecture went where, and clips / hours / words per split. An existing dataset is only replaced with `--force`, and only the folders this command made are removed
+- `data/finetune/` is gitignored (the clips are CC BY-NC-SA audio and can be regenerated)
+- 30 new tests in `tests/test_finetune_data.py`, all offline: merging, gap cuts, overlap, every drop reason, padding limits, deterministic and grouped splits, leakage errors and warnings, clips checked sample-for-sample against the source audio, dry run, `--force` and the CLI with real ffmpeg decoding. `make check` passes (917 tests, lint clean)
+- README: new "Fine-tuning data" section
+- Honest note: this sandbox cannot reach ocw.mit.edu, so there are no real clip counts yet. Run `notetaker evalset` then `notetaker finetune-data --dry-run` locally to see them
+
+**How it works**
+Whisper only ever looks at 30 seconds of audio, so training examples must be short clips paired with exactly what was said. The OCW captions already give that: each cue has a start time, an end time and text, so cutting the lecture audio at cue boundaries gives aligned (audio, text) pairs for free. The part worth explaining in an interview is leakage. If you split clips randomly, neighbouring clips from the same lecture land in both train and test; they share the topic, the vocabulary, the room acoustics and the speaker's voice, so the test score measures memorisation, not generalisation. Splitting by lecture (or by course, which roughly means by speaker) is "group k-fold" thinking: the unit you split on must be the unit you want to generalise to, which here is a new lecture. The hash-based assignment gives each lecture a fixed pseudo-random rank, so the split is reproducible without storing it and stable as the manifest grows. A second, independent check on the finished data is defence in depth: if a later code change broke the split logic, the build would fail instead of silently producing a leaky dataset. One consequence for Step 6.3: the fine-tuned vs base comparison must use only the test lectures, so the base model gets re-scored on that split rather than reusing the all-lecture baseline.
+
+**Next up**
+Step 6.2: LoRA fine-tune Whisper small on technical lecture audio (Colab/Kaggle free GPU notebook).
+
+---
+
 ## 2026-11-18 · Step 5.5: Hybrid search (BM25 + vectors) vs the 5.4 baseline
 
 **What I did**
