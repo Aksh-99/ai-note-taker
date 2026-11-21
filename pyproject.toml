@@ -64,6 +64,17 @@ rag = [
     "sentence-transformers>=3.0",
 ]
 
+# LoRA fine-tuning of Whisper (finetune.py, Step 6.2). Optional for the same
+# reason: PyTorch is large. torch 2.3+ is needed for torch.amp.GradScaler.
+# Base model weights are NOT included; they download from the Hugging Face
+# Hub on the first real run (in practice on a free Colab or Kaggle GPU):
+#   pip install -e ".[finetune]"
+finetune = [
+    "torch>=2.3",
+    "transformers>=4.40",
+    "peft>=0.10",
+]
+
 [project.scripts]
 # This creates a `notetaker` command on your PATH after install. It calls
 # the main() function in src/notetaker/cli.py.

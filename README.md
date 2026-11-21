@@ -324,5 +324,17 @@ notetaker finetune-data --test mit-6.041-lec01 --val mit-6.034-lec01
 
 The output in `data/finetune/` (gitignored) uses the Hugging Face audiofolder layout (`<split>/metadata.jsonl` plus WAV clips), so `datasets.load_dataset("audiofolder", data_dir="data/finetune")` loads it directly. `dataset.json` records which lecture went where and how many clips and hours each split has.
 
+### LoRA fine-tuning (Phase 6, in progress)
+
+`notetaker finetune` adapts Whisper small to lecture audio with **LoRA**: the 242M pretrained weights stay frozen and only small low-rank corrections (`W + (alpha / r) * B @ A`) on the attention query and value layers are trained, about 1-2% of the parameters. The training loop is hand-written PyTorch (gradient accumulation, fp16 on GPU, linear warmup and decay, gradient clipping) and keeps the adapter with the lowest validation loss.
+
+```bash
+pip install -e ".[finetune]"              # torch + transformers + peft
+notetaker finetune --dry-run              # clips, hours, steps per epoch; loads no model
+notetaker finetune --max-steps 1000 -o models/whisper-small-lora   # on a GPU
+```
+
+Whisper small needs a GPU; a free Colab or Kaggle T4 is enough (notebook coming in Step 6.2b). The output is `adapter/` (a few MB of LoRA weights) plus `finetune.json` with the settings and the loss curve. Settings can also come from a JSON file (`--config`) with any `FinetuneConfig` field. The tests train a tiny random Whisper on CPU, so the whole pipeline is checked without downloading a model.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

@@ -72,3 +72,25 @@ jobs:
       # 6. Run the fast test suite (slow tests are skipped).
       - name: Test
         run: make test
+
+  # Separate job for the fine-tuning code (Step 6.2). It needs PyTorch, which
+  # the main job skips to stay fast. We install the small CPU-only build of
+  # torch (no CUDA libraries) and run only the fine-tuning tests, which use a
+  # tiny randomly initialised Whisper: no model download, a few seconds.
+  finetune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install (CPU-only torch first, so pip does not fetch the CUDA build)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[dev,finetune]"
+      - name: Test fine-tuning
+        run: pytest tests/test_finetune.py tests/test_finetune_training.py

@@ -67,6 +67,10 @@ Commands so far:
                           cut the downloaded eval lectures into <= 30 s labeled
                           clips for Whisper fine-tuning, split train/val/test
                           by whole lecture so nothing leaks (data/finetune/)
+    notetaker finetune --dry-run
+                          LoRA fine-tune Whisper on those clips (needs the
+                          [finetune] extra and, in practice, a free Colab or
+                          Kaggle GPU); --dry-run only shows the training plan
 """
 
 import argparse
@@ -1256,6 +1260,61 @@ def build_parser() -> argparse.ArgumentParser:
         help="only read the captions and show the split; write nothing",
     )
     fd.add_argument("--force", action="store_true", help="replace an existing dataset")
+
+    ft = subcommands.add_parser(
+        "finetune",
+        help="LoRA fine-tune Whisper on the clips from `notetaker finetune-data`",
+        description=(
+            "Freeze Whisper and train small low-rank (LoRA) adapters on the "
+            "attention layers using the train split, keeping the adapter with "
+            "the lowest validation loss. Needs pip install -e '.[finetune]' "
+            "and, for Whisper small, a GPU (a free Colab or Kaggle T4 works). "
+            "Writes <out>/adapter/ and <out>/finetune.json."
+        ),
+    )
+    ft.add_argument(
+        "--data-dir",
+        type=Path,
+        default=None,
+        help="dataset from finetune-data (default: <NOTETAKER_DATA_DIR>/finetune)",
+    )
+    ft.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=Path("models/whisper-small-lora"),
+        help="where to save the adapter (default: models/whisper-small-lora)",
+    )
+    ft.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="JSON file with FinetuneConfig fields; flags below override it",
+    )
+    ft.add_argument("--base-model", default=None, help="default: openai/whisper-small")
+    ft.add_argument("--max-steps", type=int, default=None, help="default: 1000")
+    ft.add_argument("--learning-rate", type=float, default=None, help="default: 1e-3")
+    ft.add_argument("--batch-size", type=int, default=None, help="default: 8")
+    ft.add_argument("--grad-accum-steps", type=int, default=None, help="default: 2")
+    ft.add_argument("--lora-r", type=int, default=None, help="LoRA rank (default: 32)")
+    ft.add_argument("--eval-every", type=int, default=None, help="default: 100")
+    ft.add_argument(
+        "--warmup-steps",
+        type=int,
+        default=None,
+        help="default: 50, or a tenth of --max-steps if that is smaller",
+    )
+    ft.add_argument(
+        "--device", default=None, help="cuda or cpu (default: cuda if available)"
+    )
+    ft.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="only count clips and show the training plan; load no model",
+    )
+    ft.add_argument(
+        "--force", action="store_true", help="replace an existing finetune.json"
+    )
     return parser
 
 
@@ -2830,6 +2889,78 @@ def run_finetune_data(args: argparse.Namespace) -> int:
     return 0
 
 
+# Command-line flag name -> FinetuneConfig field it overrides.
+_FINETUNE_FLAGS = (
+    "base_model",
+    "max_steps",
+    "learning_rate",
+    "batch_size",
+    "grad_accum_steps",
+    "lora_r",
+    "eval_every",
+    "warmup_steps",
+)
+
+
+def run_finetune_cmd(args: argparse.Namespace) -> int:
+    """Handle `notetaker finetune`: plan (and unless --dry-run, run) LoRA."""
+    # dataclasses.replace copies a dataclass with some fields changed.
+    from dataclasses import replace
+
+    from notetaker.finetune import (
+        FinetuneConfig,
+        FinetuneError,
+        plan_markdown,
+        plan_training,
+        run_finetune,
+    )
+
+    try:
+        settings = get_settings()
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+    data_dir = args.data_dir or settings.data_dir / "finetune"
+    try:
+        config = (
+            FinetuneConfig.from_file(args.config) if args.config else FinetuneConfig()
+        )
+        overrides = {
+            name: getattr(args, name)
+            for name in _FINETUNE_FLAGS
+            if getattr(args, name) is not None
+        }
+        # A short run (e.g. --max-steps 20 for a smoke test) would otherwise
+        # be all warmup; shrink the warmup unless it was set explicitly.
+        if (
+            args.warmup_steps is None
+            and "max_steps" in overrides
+            and config.warmup_steps >= overrides["max_steps"]
+        ):
+            overrides["warmup_steps"] = overrides["max_steps"] // 10
+        config = replace(config, **overrides)
+        plan = plan_training(config, data_dir)
+        print(plan_markdown(plan, config))
+        if args.dry_run:
+            print("Dry run: no model was loaded.")
+            return 0
+        run_finetune(
+            config,
+            data_dir,
+            args.output_dir,
+            device=args.device,
+            force=args.force,
+            log=lambda message: print(message, flush=True),
+        )
+    except FinetuneError as error:
+        print(f"Error: {error}")
+        return 1
+    print(
+        f"Wrote {args.output_dir / 'adapter'} and {args.output_dir / 'finetune.json'}"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -2881,6 +3012,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_eval_retrieval(args)
     if args.command == "finetune-data":
         return run_finetune_data(args)
+    if args.command == "finetune":
+        return run_finetune_cmd(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

@@ -4,6 +4,32 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-20 · Step 6.2a: LoRA training code for Whisper (data, LoRA, training loop, CLI)
+
+**What I did**
+- Step 6.2 was too big for one night, so I split it: 6.2a is the training code (today), 6.2b is the free-GPU Colab/Kaggle notebook that runs it on Whisper small
+- Added `src/notetaker/finetune.py` and a new command, `notetaker finetune`:
+  - `FinetuneConfig`: every setting in one dataclass (base model, LoRA rank / alpha / dropout / target layers, learning rate, batch size, gradient accumulation, steps, warmup, eval interval, fp16, seed), validated, saved with the run, loadable from JSON with `--config` (unknown keys are rejected so a typo cannot be silently ignored)
+  - Data: reads the Step 6.1 `metadata.jsonl` files, checks every clip exists and fits in 30 s, reads WAVs with the built-in `wave` module, tokenizes labels up front and drops (and counts) any over Whisper's 448-token decoder limit, and loads audio lazily per item so hours of clips never sit in memory
+  - `WhisperCollator`: stacks the 80 x 3000 spectrograms, pads labels with -100 and strips the duplicated start token
+  - `apply_lora` (via `peft`) on the attention `q_proj` / `v_proj` layers, r = 32, alpha = 64 by default
+  - A hand-written PyTorch training loop: AdamW on the adapter weights only, linear warmup then linear decay, gradient accumulation, gradient clipping, fp16 autocast with a GradScaler on GPU, token-weighted validation loss every `eval_every` steps, and the best adapter saved whenever the validation loss improves
+  - `run_finetune` writes `<out>/adapter/` (a few MB) and `<out>/finetune.json` (settings, data plan, trainable vs total parameters, the full loss history for plots in Step 6.3)
+  - `--dry-run` counts clips, hours and lectures per split and prints steps per epoch and total epochs without loading any model, and warns past 20 epochs (overfitting risk on a small dataset)
+- New optional extra `pip install -e ".[finetune]"` (torch, transformers, peft); the rest of the package still works without it, because these imports happen inside the functions that need them
+- New CI job `finetune` that installs the CPU-only PyTorch build and runs only the fine-tuning tests, so the main job stays fast
+- 37 new tests in `tests/test_finetune.py` (no torch: config, schedule, data, plan, dataset with fakes, CLI) and `tests/test_finetune_training.py` (skipped without torch). The training tests build a 37k-parameter random Whisper offline and check: only `lora_` weights are trainable; the wrapped model gives exactly the same loss as the original before training; the loss more than halves when overfitting two clips; validation runs on schedule and the best step is recorded; two runs with the same seed match; the saved adapter reloads onto a fresh base model with non-zero B matrices; the CLI trains end to end. `make check` passes (954 tests, lint clean)
+- README: new "LoRA fine-tuning" section
+- Honest note: no real Whisper small run yet. This sandbox has no GPU and cannot download the model; that is Step 6.2b on a free Colab/Kaggle GPU
+
+**How it works**
+Full fine-tuning updates every weight matrix W in Whisper small, 242M numbers: too much memory for a free GPU and very easy to overfit with a few hours of lecture audio. LoRA freezes W and learns a low-rank correction, W + (alpha / r) B A, where B is d x r and A is r x k with r much smaller than d and k. The intuition is that the change needed to adapt a big pretrained model to a new domain lives in a small subspace, so a rank-32 update is enough. B starts at zero, so at step 0 the model is exactly the pretrained Whisper (a test checks this), and training only moves it gradually. Training uses teacher forcing: the decoder sees the correct previous tokens and the loss is the cross-entropy of each next token; padding positions get the label -100, which PyTorch's cross-entropy ignores. Three engineering details worth explaining in an interview. Gradient accumulation: add the gradients of several small batches (each loss divided by their count) before one optimizer step, which equals one big batch without its memory cost. Warmup: Adam's running averages are noisy for the first steps, so the learning rate ramps up from 0 instead of taking full-size steps on bad estimates. Mixed precision: compute in fp16 for speed and memory, but scale the loss up before the backward pass so tiny gradients do not round to zero, then scale back before the update. One lesson from the tests: a LoRA adapter on a tiny random model barely learned, because its frozen output embeddings were so small that every logit stayed near zero; full fine-tuning learned fine. LoRA relies on the frozen weights already being useful, which is true for real Whisper and was fixed in the test by using a larger random initialisation.
+
+**Next up**
+Step 6.2b: Colab/Kaggle free-GPU notebook that runs `notetaker finetune` on Whisper small and saves the adapter.
+
+---
+
 ## 2026-11-19 · Step 6.1: Fine-tuning dataset from the eval-set audio (train/val split, no leakage)
 
 **What I did**
