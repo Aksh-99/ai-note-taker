@@ -733,3 +733,92 @@ def run_finetune(
         f"adapter saved to {adapter_dir}"
     )
     return summary
+
+
+# ---------------------------------------------------------------------------
+# Loading a trained adapter and transcribing with it (Step 6.2b)
+# ---------------------------------------------------------------------------
+
+
+def load_finetuned(
+    out_dir: str | Path,
+    *,
+    device: str | None = None,
+    load_model: Callable[[FinetuneConfig], tuple[Any, Any, Any]] | None = None,
+) -> tuple[Any, Any, Any, FinetuneConfig]:
+    """Rebuild "base Whisper + LoRA adapter" from a `run_finetune` output.
+
+    Reads `<out_dir>/finetune.json` to learn which base model was used, loads
+    that base model (downloads it the first time), and attaches the saved
+    adapter from `<out_dir>/adapter/`.
+
+    Returns (model, feature_extractor, tokenizer, config). The model is a
+    peft `PeftModel` in eval mode. A handy property for comparisons: inside
+    `with model.disable_adapter():` the same object behaves exactly like the
+    original base model (the B @ A corrections are switched off), so a
+    before / after check needs only one copy of the weights in GPU memory.
+
+    `load_model` is the same hook as in `run_finetune`; tests pass a tiny
+    offline model so nothing is downloaded.
+    """
+    out_dir = Path(out_dir)
+    summary_path = out_dir / SUMMARY_FILENAME
+    adapter_dir = out_dir / ADAPTER_DIRNAME
+    if not summary_path.is_file() or not adapter_dir.is_dir():
+        raise FinetuneError(
+            f"{out_dir} has no {SUMMARY_FILENAME} + {ADAPTER_DIRNAME}/; "
+            "run `notetaker finetune` first"
+        )
+    try:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        config = FinetuneConfig.from_json(summary["config"])
+    except (json.JSONDecodeError, KeyError, TypeError) as error:
+        raise FinetuneError(f"Cannot read {summary_path}: {error}") from error
+    peft = _import("peft")
+    base, feature_extractor, tokenizer = (load_model or _load_pretrained)(config)
+    model = peft.PeftModel.from_pretrained(base, str(adapter_dir))
+    device = pick_device(device)
+    model.to(device)
+    model.eval()  # turns off dropout, so transcripts are deterministic
+    return model, feature_extractor, tokenizer, config
+
+
+def transcribe_clips(
+    model: Any,
+    feature_extractor: Any,
+    tokenizer: Any,
+    clips: Sequence[Clip],
+    *,
+    device: str | None = None,
+    batch_size: int = 8,
+    max_new_tokens: int = 225,
+) -> list[str]:
+    """Greedy-decode each clip with a Hugging Face Whisper model.
+
+    This is a quick look for the Colab notebook (base vs fine-tuned on a few
+    validation clips). The proper evaluation over whole test lectures, with
+    WER and term recall, is Step 6.3.
+
+    `max_new_tokens=225` keeps prompt + output under Whisper's 448-token
+    decoder limit with plenty of room for 30 s of speech (about 75 words).
+    """
+    if batch_size < 1:
+        raise FinetuneError("batch_size must be at least 1")
+    torch = _import("torch")
+    if device is None:
+        # Use whatever device the model's weights already live on.
+        device = str(next(model.parameters()).device)
+    texts: list[str] = []
+    for start in range(0, len(clips), batch_size):
+        batch = clips[start : start + batch_size]
+        audio = [read_wav(clip.path) for clip in batch]
+        features = feature_extractor(
+            audio, sampling_rate=WHISPER_SAMPLE_RATE, return_tensors="pt"
+        ).input_features.to(device)
+        # no_grad: we only run the model forward, so skip storing the
+        # intermediate values backpropagation would need (saves memory).
+        with torch.no_grad():
+            ids = model.generate(input_features=features, max_new_tokens=max_new_tokens)
+        decoded = tokenizer.batch_decode(ids, skip_special_tokens=True)
+        texts.extend(text.strip() for text in decoded)
+    return texts

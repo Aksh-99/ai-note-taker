@@ -51,7 +51,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 ## Phase 6: Model improvement
 - [x] 6.1 Build fine-tuning dataset from eval-set audio (train/val split, no leakage)
 - [x] 6.2a LoRA training code: data loading + collator, LoRA setup, training loop, `notetaker finetune` CLI (tested on a tiny random Whisper)
-- [ ] 6.2b Colab/Kaggle free-GPU notebook that runs `notetaker finetune` on Whisper small and saves the adapter
+- [x] 6.2b Colab/Kaggle free-GPU notebook that runs `notetaker finetune` on Whisper small and saves the adapter
 - [ ] 6.3 Evaluate fine-tuned vs base: WER + technical-term recall, write up in `reports/finetune.md`
 - [ ] 6.4 int8 quantization (CTranslate2) of the best model, speed/accuracy tradeoff table
 

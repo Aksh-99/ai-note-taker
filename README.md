@@ -334,7 +334,23 @@ notetaker finetune --dry-run              # clips, hours, steps per epoch; loads
 notetaker finetune --max-steps 1000 -o models/whisper-small-lora   # on a GPU
 ```
 
-Whisper small needs a GPU; a free Colab or Kaggle T4 is enough (notebook coming in Step 6.2b). The output is `adapter/` (a few MB of LoRA weights) plus `finetune.json` with the settings and the loss curve. Settings can also come from a JSON file (`--config`) with any `FinetuneConfig` field. The tests train a tiny random Whisper on CPU, so the whole pipeline is checked without downloading a model.
+Whisper small needs a GPU; a free Colab or Kaggle T4 is enough, and the notebook below does the whole run there. The output is `adapter/` (a few MB of LoRA weights) plus `finetune.json` with the settings and the loss curve. Settings can also come from a JSON file (`--config`) with any `FinetuneConfig` field. The tests train a tiny random Whisper on CPU, so the whole pipeline is checked without downloading a model.
+
+#### Free-GPU notebook
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Aksh-99/ai-note-taker/blob/main/notebooks/finetune_whisper_small.ipynb)
+
+[`notebooks/finetune_whisper_small.ipynb`](notebooks/finetune_whisper_small.ipynb) runs on free Colab or Kaggle (File > Import notebook > GitHub URL) with no API keys: it clones the repo, downloads the OCW eval lectures, builds the clips, picks a batch size that fits the GPU (`notetaker.runtime`), trains, plots the loss curves, compares base vs fine-tuned transcripts on a few validation clips, and zips the adapter for download. Start with `SMOKE_TEST = True` (20 steps, about a minute) before the full run. The helpers it uses are tested in CI, and a test checks that every `notetaker` command in the notebook is accepted by the CLI.
+
+```python
+from notetaker.finetune import load_clips, load_finetuned, transcribe_clips
+
+model, features, tokenizer, _ = load_finetuned("models/whisper-small-lora")
+clips = load_clips("data/finetune", "val")[:4]
+with model.disable_adapter():  # same object, adapters off = base Whisper
+    base = transcribe_clips(model, features, tokenizer, clips)
+tuned = transcribe_clips(model, features, tokenizer, clips)
+```
 
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

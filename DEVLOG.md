@@ -4,6 +4,30 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-21 · Step 6.2b: Free-GPU Colab/Kaggle notebook for LoRA fine-tuning
+
+**What I did**
+- Added `notebooks/finetune_whisper_small.ipynb`, which runs the whole fine-tuning pipeline on a free Colab or Kaggle T4 with no API keys or tokens: check the GPU, clone the repo and install `.[finetune]`, `notetaker evalset` (download the OCW lectures + captions), `notetaker finetune-data` (dry run, then build), write a config sized for the GPU, `notetaker finetune` (dry run, then train), plot train and validation loss with the saved step marked, compare base vs fine-tuned transcripts on a few validation clips, and zip `adapter/` + `finetune.json` + `train_config.json` + the plot for download (Colab), Google Drive (optional) or the Kaggle Output tab
+- `SMOKE_TEST = True` (the default) trains 20 steps into a separate `-smoke` folder, so a broken setup fails in a minute instead of an hour, and a smoke run never overwrites a real one
+- New module `src/notetaker/runtime.py` (no torch import) so the notebook's logic is tested in CI instead of living in untested cells:
+  - `detect_platform()`: Colab, Kaggle or local, from environment variables those hosts always set
+  - `default_paths()`: where data, output and the saved zip go on each host (on Kaggle, big audio goes to `/kaggle/temp` and only the small results to the saved `/kaggle/working`)
+  - `suggest_batch()`: batch 8 on a 16 GB GPU, 4 on 10 to 14 GB, 2 on 6 to 10 GB, else 1, with gradient accumulation scaled so the effective batch stays 16
+  - `notebook_config()` and `write_config()`: a validated `FinetuneConfig` for this GPU (fp16 on GPU, smoke-test settings) saved as JSON for `notetaker finetune --config`
+- Added to `finetune.py`: `load_finetuned(out_dir)` rebuilds base Whisper + the saved adapter from `finetune.json`, and `transcribe_clips(...)` greedy-decodes clips in batches. Step 6.3 will reuse both
+- 29 new tests: `tests/test_runtime.py` (platforms, paths, batch sizes, configs round-tripping through the CLI loader), `tests/test_notebook.py` (valid nbformat 4.5, no committed outputs, every code cell parses, every `!notetaker ...` line is accepted by the real CLI parser, the pipeline is complete, no secret-looking strings or paid APIs, no em dashes), and 3 tiny-Whisper tests for loading and transcribing, including that `disable_adapter()` gives exactly the base model's transcripts. ruff also lints the notebook. `make check` passes (983 tests, lint clean)
+- Ran the notebook's Python cells locally with a tiny random Whisper standing in for the downloads. That caught a real bug before it shipped: on Kaggle the config file would have been copied onto itself and crashed the save step. The config now lives inside the output folder and travels in the zip
+- README: Colab badge and a "Free-GPU notebook" section
+- Honest note: the notebook has not run on a real GPU yet (this sandbox has none and cannot download Whisper small or reach ocw.mit.edu). Open it in Colab, run with `SMOKE_TEST = True`, then the full run, and unzip the result into `models/` for Step 6.3
+
+**How it works**
+A notebook is a thin driver here: every real step is a `notetaker` command or a package function, so the same code runs on a laptop, in CI (with tiny models) and on Colab, and the notebook cannot drift away from the tested code. Two engineering points worth explaining. First, memory vs batch size: GPU memory needed during training grows roughly linearly with the batch, because every clip's activations are stored for the backward pass. Halving the batch and doubling gradient accumulation keeps the same effective batch (16 clips averaged per optimizer step), so the maths of the update is unchanged and only the wall-clock time grows. Second, the before / after check uses one model, not two: LoRA computes W x + (alpha / r) B A x, and peft's `disable_adapter()` simply skips the B A term, so inside that block the model is exactly the pretrained Whisper. That halves GPU memory for the comparison, and a test proves the "adapters off" output matches a fresh base model. The quick WER in the notebook pools errors across clips (sum the substitutions, deletions and insertions, then divide by total reference words) rather than averaging per-clip WERs, which would let a 3-word clip count as much as a 70-word one.
+
+**Next up**
+Step 6.3: Evaluate fine-tuned vs base: WER + technical-term recall, write up in `reports/finetune.md`.
+
+---
+
 ## 2026-11-20 · Step 6.2a: LoRA training code for Whisper (data, LoRA, training loop, CLI)
 
 **What I did**

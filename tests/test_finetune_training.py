@@ -314,3 +314,87 @@ def test_cli_runs_training(
     assert "step 2/2" in text
     assert (out / "adapter").is_dir()
     assert json.loads((out / "finetune.json").read_text())["config"]["max_steps"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Loading a trained adapter and transcribing with it (Step 6.2b)
+# ---------------------------------------------------------------------------
+
+
+class DecodingTokenizer(FakeTokenizer):
+    """FakeTokenizer plus the batch_decode method generation needs."""
+
+    def batch_decode(self, ids, skip_special_tokens: bool = True) -> list[str]:
+        texts = []
+        for row in ids.tolist():
+            if skip_special_tokens:
+                row = [i for i in row if i > END]
+            texts.append(" " + "".join(chr(97 + i % 26) for i in row) + " ")
+        return texts
+
+
+def decoding_loader(config: FinetuneConfig):
+    return tiny_whisper(), transformers.WhisperFeatureExtractor(), DecodingTokenizer()
+
+
+@pytest.fixture
+def trained_dir(dataset_dir: Path, tmp_path: Path) -> Path:
+    out = tmp_path / "out"
+    run_finetune(
+        small_config(max_steps=10),
+        dataset_dir,
+        out,
+        device="cpu",
+        load_model=decoding_loader,
+        log=lambda _: None,
+    )
+    return out
+
+
+def test_load_finetuned_rebuilds_base_plus_adapter(trained_dir: Path) -> None:
+    peft = pytest.importorskip("peft")
+    model, features, tokenizer, config = finetune.load_finetuned(
+        trained_dir, device="cpu", load_model=decoding_loader
+    )
+    assert isinstance(model, peft.PeftModel)
+    assert not model.training  # eval mode: dropout off
+    assert config.lora_r == 4  # read back from finetune.json
+    assert isinstance(tokenizer, DecodingTokenizer)
+    assert isinstance(features, transformers.WhisperFeatureExtractor)
+
+
+def test_load_finetuned_needs_a_finished_run(tmp_path: Path) -> None:
+    with pytest.raises(finetune.FinetuneError, match="run `notetaker finetune`"):
+        finetune.load_finetuned(tmp_path, load_model=decoding_loader)
+    (tmp_path / "adapter").mkdir()
+    (tmp_path / "finetune.json").write_text("{not json")
+    with pytest.raises(finetune.FinetuneError, match="Cannot read"):
+        finetune.load_finetuned(tmp_path, load_model=decoding_loader)
+
+
+def test_transcribe_clips_with_and_without_adapter(
+    trained_dir: Path, dataset_dir: Path
+) -> None:
+    model, features, tokenizer, _ = finetune.load_finetuned(
+        trained_dir, device="cpu", load_model=decoding_loader
+    )
+    clips = load_clips(dataset_dir, "train") + load_clips(dataset_dir, "val")
+    # batch_size=2 with 3 clips also exercises the short last batch.
+    tuned = finetune.transcribe_clips(
+        model, features, tokenizer, clips, batch_size=2, max_new_tokens=5
+    )
+    with model.disable_adapter():
+        base = finetune.transcribe_clips(
+            model, features, tokenizer, clips, batch_size=2, max_new_tokens=5
+        )
+    assert len(tuned) == len(base) == len(clips)
+    assert all(isinstance(t, str) and t == t.strip() for t in tuned + base)
+
+    # With the adapter switched off the model must be exactly the original
+    # random Whisper, so a fresh copy of it gives the same transcripts.
+    fresh = tiny_whisper().eval()
+    assert base == finetune.transcribe_clips(
+        fresh, features, tokenizer, clips, max_new_tokens=5
+    )
+    with pytest.raises(finetune.FinetuneError, match="batch_size"):
+        finetune.transcribe_clips(model, features, tokenizer, clips, batch_size=0)
