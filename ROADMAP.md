@@ -52,7 +52,8 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 6.1 Build fine-tuning dataset from eval-set audio (train/val split, no leakage)
 - [x] 6.2a LoRA training code: data loading + collator, LoRA setup, training loop, `notetaker finetune` CLI (tested on a tiny random Whisper)
 - [x] 6.2b Colab/Kaggle free-GPU notebook that runs `notetaker finetune` on Whisper small and saves the adapter
-- [ ] 6.3 Evaluate fine-tuned vs base: WER + technical-term recall, write up in `reports/finetune.md`
+- [x] 6.3a Evaluation code: `notetaker finetune-eval` (adapter off vs on on the test clips, pooled WER/CER + term recall, paired bootstrap interval, `reports/finetune.md`), notebook section, tests on a tiny Whisper
+- [x] 6.3b (moved to 8.2b: the real GPU run needs a human-started Colab/Kaggle session)
 - [ ] 6.4 int8 quantization (CTranslate2) of the best model, speed/accuracy tradeoff table
 
 ## Phase 7: API + UI
@@ -64,5 +65,6 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 ## Phase 8: Ship it
 - [ ] 8.1 Deploy to Hugging Face Spaces (free tier)
 - [ ] 8.2 Monitoring: request logs, latency, error rate
+- [ ] 8.2b Real results (needs Akshara to start a free Colab/Kaggle GPU session): run `notebooks/finetune_whisper_small.ipynb` with `SMOKE_TEST = False`, commit `reports/finetune.md` + `reports/finetune.json` and put the headline numbers in the README (6.3b and 6.4 real runs)
 - [ ] 8.3 README polish: architecture diagram, demo GIF, results tables, how to run
 - [ ] 8.4 Write-up: `docs/case-study.md` covering problem, approach, metrics, lessons

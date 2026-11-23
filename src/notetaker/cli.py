@@ -71,6 +71,11 @@ Commands so far:
                           LoRA fine-tune Whisper on those clips (needs the
                           [finetune] extra and, in practice, a free Colab or
                           Kaggle GPU); --dry-run only shows the training plan
+    notetaker finetune-eval --model-dir models/whisper-small-lora
+                          transcribe the held-out test clips with the adapter
+                          off and on, compare WER + term recall with a
+                          bootstrap interval, write reports/finetune.md;
+                          --from-transcripts re-scores without a model
 """
 
 import argparse
@@ -1314,6 +1319,76 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ft.add_argument(
         "--force", action="store_true", help="replace an existing finetune.json"
+    )
+
+    fe = subcommands.add_parser(
+        "finetune-eval",
+        help="compare the fine-tuned Whisper with its base model (WER, terms)",
+        description=(
+            "Transcribe the held-out clips twice with one model, LoRA adapter "
+            "off (base) and on (fine-tuned), then compare pooled WER / CER and "
+            "technical-term recall, with a paired bootstrap 95% interval for "
+            "the WER change. Writes <output>/finetune.json and finetune.md. "
+            "With --from-transcripts it only re-scores a saved JSONL: no model, "
+            "no torch, seconds."
+        ),
+    )
+    fe.add_argument(
+        "--model-dir",
+        type=Path,
+        default=Path("models/whisper-small-lora"),
+        help="output of `notetaker finetune` (default: models/whisper-small-lora)",
+    )
+    fe.add_argument(
+        "--data-dir",
+        type=Path,
+        default=None,
+        help="dataset from finetune-data (default: <NOTETAKER_DATA_DIR>/finetune)",
+    )
+    fe.add_argument(
+        "--split",
+        choices=["train", "val", "test"],
+        default="test",
+        help="which clips to evaluate (default: test, never seen in training)",
+    )
+    fe.add_argument(
+        "--from-transcripts",
+        type=Path,
+        default=None,
+        help="re-score this saved transcripts JSONL instead of running a model",
+    )
+    fe.add_argument(
+        "--transcripts",
+        type=Path,
+        default=None,
+        help="where to save transcripts (default: <model-dir>/eval_transcripts.jsonl)",
+    )
+    fe.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=Path("reports"),
+        help="where to write finetune.json + finetune.md (default: reports)",
+    )
+    fe.add_argument(
+        "--terms",
+        type=Path,
+        default=Path("eval/technical_terms.json"),
+        help="curated term list (default: eval/technical_terms.json)",
+    )
+    fe.add_argument(
+        "--limit", type=int, default=None, help="only the first N clips (smoke test)"
+    )
+    fe.add_argument("--batch-size", type=int, default=8, help="default: 8")
+    fe.add_argument(
+        "--bootstrap",
+        type=int,
+        default=2000,
+        help="bootstrap resamples for the WER interval (default: 2000)",
+    )
+    fe.add_argument("--seed", type=int, default=0, help="bootstrap seed (default: 0)")
+    fe.add_argument(
+        "--device", default=None, help="cuda or cpu (default: cuda if available)"
     )
     return parser
 
@@ -2961,6 +3036,75 @@ def run_finetune_cmd(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_finetune_eval_cmd(args: argparse.Namespace) -> int:
+    """Handle `notetaker finetune-eval`: base vs fine-tuned Whisper report."""
+    from notetaker.finetune import FinetuneError
+    from notetaker.finetune_eval import (
+        evaluate_transcripts,
+        load_transcripts,
+        run_finetune_eval,
+        training_summary,
+        write_report,
+    )
+    from notetaker.term_recall import load_terms
+
+    if args.limit is not None and args.limit < 1:
+        print("Error: --limit must be at least 1")
+        return 1
+    try:
+        terms = load_terms(args.terms)
+    except (OSError, ValueError) as error:
+        print(f"Error: cannot read term list {args.terms}: {error}")
+        return 1
+    try:
+        if args.from_transcripts:
+            # Re-score only: no settings, no model, no torch needed.
+            rows = load_transcripts(args.from_transcripts)
+            if args.limit is not None:
+                rows = rows[: args.limit]
+            report = evaluate_transcripts(
+                rows,
+                terms,
+                split=args.split,
+                resamples=args.bootstrap,
+                seed=args.seed,
+                training=training_summary(args.model_dir),
+            )
+        else:
+            try:
+                settings = get_settings()
+            except ValidationError as error:
+                print(f"Invalid configuration:\n{error}")
+                return 1
+            report = run_finetune_eval(
+                args.model_dir,
+                args.data_dir or settings.data_dir / "finetune",
+                terms,
+                split=args.split,
+                transcripts_path=args.transcripts,
+                limit=args.limit,
+                batch_size=args.batch_size,
+                device=args.device,
+                resamples=args.bootstrap,
+                seed=args.seed,
+                log=lambda message: print(message, flush=True),
+            )
+    except (FinetuneError, ValueError) as error:
+        print(f"Error: {error}")
+        return 1
+    base, tuned = report.overall["base"], report.overall["fine-tuned"]
+    boot = report.bootstrap
+    print(
+        f"WER {base.wer:.1%} -> {tuned.wer:.1%} "
+        f"(change {100 * boot.delta:+.1f} pp, 95% CI "
+        f"{100 * boot.low:+.1f} to {100 * boot.high:+.1f}); "
+        f"term recall {base.term_recall:.1%} -> {tuned.term_recall:.1%}"
+    )
+    for path in write_report(report, args.output_dir):
+        print(f"Wrote {path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -3014,6 +3158,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_finetune_data(args)
     if args.command == "finetune":
         return run_finetune_cmd(args)
+    if args.command == "finetune-eval":
+        return run_finetune_eval_cmd(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

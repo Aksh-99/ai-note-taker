@@ -4,6 +4,29 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-22 · Step 6.3a: Evaluation code for fine-tuned vs base Whisper
+
+**What I did**
+- Step 6.3 needs a real GPU run to produce real numbers, which this sandbox cannot do, so I split it: 6.3a is the evaluation code (today); the real run is now step 8.2b in the roadmap, since it needs you to start a free Colab/Kaggle session. That keeps the nightly builds moving on 6.4 and Phase 7 in the meantime
+- New module `src/notetaker/finetune_eval.py` and a new command, `notetaker finetune-eval`:
+  - Full run: loads base Whisper + the saved adapter once, transcribes every clip of the held-out **test** split with the adapter on, then again inside `model.disable_adapter()` (exactly the base model), and saves both transcripts per clip to a JSONL file
+  - Re-score mode, `--from-transcripts`: scores a saved JSONL with no model and no torch, in seconds, so the report can be rebuilt on a laptop or with a new term list
+  - Metrics reuse Phase 2's code: pooled WER / CER (`wer.py`) and technical-term recall / precision (`term_recall.py`), overall and per lecture
+  - Paired bootstrap 95% interval for the WER change (2000 resamples by default, seeded, vectorised with numpy) plus a one-sentence verdict: improved, worse, or "cannot tell"
+  - Per-term table (how often each term was transcribed correctly before vs after), the most improved and most worsened example clips, and the training facts from `finetune.json` (base model, LoRA rank, best step, trainable parameters, hours of training audio)
+  - Writes `reports/finetune.md` and `reports/finetune.json`; clips whose caption is empty after normalization (such as "[MUSIC]") are skipped and listed instead of crashing the run
+- Notebook: new section 8 runs `notetaker finetune-eval` on the test lectures and displays the report; the zip now includes the report and transcripts
+- 20 new tests: 18 in `tests/test_finetune_eval.py` (hand-checked WER and term counts on a 3-clip example, pooling, skipped clips, bootstrap behaviour on identical systems, a consistent improvement and pure noise, reproducibility, markdown and JSON, CLI) and 2 end-to-end tests on the tiny random Whisper, including that the "base" transcripts match a fresh copy of the untouched model. The CI fine-tuning job runs them too. `make check` passes
+- README: "Evaluating fine-tuned vs base" section
+
+**How it works**
+The fair comparison is one model, two modes. LoRA computes W x + (alpha / r) B A x, and turning the adapter off just drops the second term, so the base and fine-tuned transcripts come from identical weights, audio, decoding and normalization; the only difference is the adapter. Error rates are pooled (total errors divided by total reference words) rather than averaged per clip, so short clips do not get outsized weight. The important statistical idea is the paired bootstrap. The test clips are one random sample, so the measured WER difference is itself noisy. To estimate how noisy, draw n clips with replacement from the n test clips, recompute both pooled WERs on that resample, take the difference, and repeat 2000 times; the 2.5th and 97.5th percentiles give a 95% interval. "Paired" means a drawn clip brings both models' errors with it, so clip difficulty (a mumbled or noisy clip is hard for both) cancels out and the interval is much tighter than comparing two independent WERs. If the whole interval is below zero, the improvement is unlikely to be luck. One honest caveat is written into the report: clips from the same lecture are correlated (same speaker and topic), so resampling clips as if independent makes the interval slightly too narrow; with only a few test lectures, resampling whole lectures would be too coarse to say anything. Engineering note: the bootstrap draws a 2000 x n matrix of random clip indices and sums rows with numpy, replacing a slow double loop with one array operation.
+
+**Next up**
+Step 6.4: int8 quantization (CTranslate2) of the best model, speed/accuracy tradeoff table. Whenever you have an hour, run the notebook on a free Colab T4 (step 8.2b) to get the real fine-tuning numbers.
+
+---
+
 ## 2026-11-21 · Step 6.2b: Free-GPU Colab/Kaggle notebook for LoRA fine-tuning
 
 **What I did**

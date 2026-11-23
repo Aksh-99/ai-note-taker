@@ -93,4 +93,4 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -e ".[dev,finetune]"
       - name: Test fine-tuning
-        run: pytest tests/test_finetune.py tests/test_finetune_training.py
+        run: pytest tests/test_finetune.py tests/test_finetune_training.py tests/test_finetune_eval.py

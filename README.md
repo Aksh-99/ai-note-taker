@@ -340,7 +340,7 @@ Whisper small needs a GPU; a free Colab or Kaggle T4 is enough, and the notebook
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Aksh-99/ai-note-taker/blob/main/notebooks/finetune_whisper_small.ipynb)
 
-[`notebooks/finetune_whisper_small.ipynb`](notebooks/finetune_whisper_small.ipynb) runs on free Colab or Kaggle (File > Import notebook > GitHub URL) with no API keys: it clones the repo, downloads the OCW eval lectures, builds the clips, picks a batch size that fits the GPU (`notetaker.runtime`), trains, plots the loss curves, compares base vs fine-tuned transcripts on a few validation clips, and zips the adapter for download. Start with `SMOKE_TEST = True` (20 steps, about a minute) before the full run. The helpers it uses are tested in CI, and a test checks that every `notetaker` command in the notebook is accepted by the CLI.
+[`notebooks/finetune_whisper_small.ipynb`](notebooks/finetune_whisper_small.ipynb) runs on free Colab or Kaggle (File > Import notebook > GitHub URL) with no API keys: it clones the repo, downloads the OCW eval lectures, builds the clips, picks a batch size that fits the GPU (`notetaker.runtime`), trains, plots the loss curves, compares base vs fine-tuned transcripts on a few validation clips, runs the full test-set evaluation below, and zips the adapter and report for download. Start with `SMOKE_TEST = True` (20 steps, about a minute) before the full run. The helpers it uses are tested in CI, and a test checks that every `notetaker` command in the notebook is accepted by the CLI.
 
 ```python
 from notetaker.finetune import load_clips, load_finetuned, transcribe_clips
@@ -351,6 +351,17 @@ with model.disable_adapter():  # same object, adapters off = base Whisper
     base = transcribe_clips(model, features, tokenizer, clips)
 tuned = transcribe_clips(model, features, tokenizer, clips)
 ```
+
+#### Evaluating fine-tuned vs base
+
+```bash
+# Full run (GPU): transcribe the held-out test clips with the adapter off and on
+notetaker finetune-eval --model-dir models/whisper-small-lora
+# Re-score saved transcripts anywhere, no model or torch needed
+notetaker finetune-eval --from-transcripts models/whisper-small-lora/eval_transcripts.jsonl
+```
+
+Writes `reports/finetune.md` and `reports/finetune.json`: pooled WER, CER and technical-term recall for both systems, per-lecture changes, the terms fixed or broken, example clips, and a paired bootstrap 95% interval for the WER change (resampling clips, so clip difficulty cancels out between the two models).
 
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

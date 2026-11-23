@@ -100,7 +100,7 @@ def test_every_notetaker_command_parses(notebook: dict) -> None:
 
 def test_notebook_covers_the_whole_pipeline(notebook: dict) -> None:
     commands = " ".join(notetaker_commands(notebook))
-    for step in ("evalset", "finetune-data", "finetune "):
+    for step in ("evalset", "finetune-data", "finetune ", "finetune-eval"):
         assert step in commands
     text = all_text(notebook)
     for name in ("load_finetuned", "transcribe_clips", "disable_adapter"):

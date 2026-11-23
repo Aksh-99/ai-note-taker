@@ -398,3 +398,54 @@ def test_transcribe_clips_with_and_without_adapter(
     )
     with pytest.raises(finetune.FinetuneError, match="batch_size"):
         finetune.transcribe_clips(model, features, tokenizer, clips, batch_size=0)
+
+
+# ---------------------------------------------------------------------------
+# Evaluating fine-tuned vs base (Step 6.3)
+# ---------------------------------------------------------------------------
+
+
+def test_run_finetune_eval_end_to_end(
+    trained_dir: Path, dataset_dir: Path, tmp_path: Path
+) -> None:
+    from notetaker.finetune_eval import load_transcripts, run_finetune_eval
+    from notetaker.term_recall import make_term
+
+    transcripts = tmp_path / "t.jsonl"
+    report = run_finetune_eval(
+        trained_dir,
+        dataset_dir,
+        [make_term("abc")],
+        split="val",  # the tiny dataset has no test split
+        transcripts_path=transcripts,
+        batch_size=2,
+        max_new_tokens=5,
+        device="cpu",
+        resamples=20,
+        load_model=decoding_loader,
+        log=lambda _: None,
+    )
+    rows = load_transcripts(transcripts)
+    assert [r.clip for r in rows] == ["lec-b/lec-b_00000.wav"]
+    assert rows[0].reference == "abc" and rows[0].lecture_id == "lec-b"
+    # "Base" must really be the untouched random Whisper.
+    fresh = tiny_whisper().eval()
+    features = transformers.WhisperFeatureExtractor()
+    clips = load_clips(dataset_dir, "val")
+    assert [rows[0].base] == finetune.transcribe_clips(
+        fresh, features, DecodingTokenizer(), clips, max_new_tokens=5
+    )
+    assert report.split == "val" and report.clips == 1
+    assert report.training["lora_r"] == 4
+    assert set(report.overall) == {"base", "fine-tuned"}
+
+
+def test_run_finetune_eval_needs_clips(trained_dir: Path, dataset_dir: Path) -> None:
+    from notetaker.finetune_eval import run_finetune_eval
+
+    (dataset_dir / "test").mkdir()
+    (dataset_dir / "test" / "metadata.jsonl").write_text("")
+    with pytest.raises(finetune.FinetuneError, match="--split val"):
+        run_finetune_eval(
+            trained_dir, dataset_dir, [], split="test", load_model=decoding_loader
+        )
