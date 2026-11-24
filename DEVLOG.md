@@ -4,6 +4,29 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-23 · Step 6.4a: Export the fine-tuned Whisper to CTranslate2 (int8)
+
+**What I did**
+- Split Step 6.4 in two: 6.4a (today) is the export itself; 6.4b is the speed / accuracy tradeoff table across precisions
+- New module `src/notetaker/quantize.py` and a new command, `notetaker export-ct2`:
+  - `save_merged`: loads base Whisper + the LoRA adapter (`load_finetuned`), folds the adapter into the weights with peft's `merge_and_unload()`, and saves a plain Hugging Face folder (config, weights, tokenizer, feature-extractor settings), making sure `tokenizer.json` exists because faster-whisper needs it
+  - `convert_to_ct2`: runs CTranslate2's converter with a chosen weight storage type (`int8` default, `int8_float16`, `float16`, `float32`) and copies the tokenizer and preprocessor files next to the weights
+  - `verify_ct2`: loads the result in faster-whisper and decodes one second of silence, so a missing file fails at export time, not on the next real run
+  - `export_ct2`: the whole thing. The merged float32 model lives in a temporary folder that is deleted afterwards (or kept with `--keep-merged`), and `export.json` records the source adapter, base model, precision, both sizes and the compression ratio
+  - Folder safety: it will not overwrite without `--force`, never writes into the adapter folder, and even with `--force` refuses to delete a folder that is not a previous export (no `export.json`), so a typo in `--out` cannot wipe anything
+  - Default output: `models/whisper-small-lora-ct2-int8` next to the run folder
+- Notebook: new section 9 runs the export after the evaluation (the export is not zipped since the same command rebuilds it from the small adapter on a laptop)
+- 21 new tests. `tests/test_quantize.py` (11, no torch, run in the main CI job): argument checks, folder rules, CLI wiring. `tests/test_quantize_export.py` (10, on a tiny random Whisper with a tiny real byte-level tokenizer, run in the CI fine-tuning job): the merged model gives the same logits as the adapter model (and the adapter really changes them); the float32 CTranslate2 model matches PyTorch's encoder output to 1e-4 and its greedy tokens exactly; int8 is smaller and its output is over 0.99 correlated with float32 but not identical; all four storage types export, load and verify; full faster-whisper transcription with word timestamps; `--force` and `--keep-merged`; the CLI end to end. `make check` passes (1024 tests, lint clean)
+- README: "Exporting for fast inference (int8)" section
+
+**How it works**
+There are three ideas. First, merging: LoRA computes W x + (alpha / r) B A x, and since both terms are linear in x the correction can be added into the weight once, W_merged = W + (alpha / r) B A. The merged model has exactly the original shapes, so any Whisper tool can load it and inference costs nothing extra for the adapter. Second, the engine: faster-whisper runs Whisper on CTranslate2, a C++ inference engine, which needs its own file format; the converter reads the Hugging Face weights and writes `model.bin` plus a vocabulary. Third, int8 quantization: for each row w of a weight matrix, store a scale s = max(|w_i|) / 127 and integers q_i = round(w_i / s) in [-127, 127], so w_i is approximated by s * q_i with error at most s / 2. Weights drop from 4 bytes to 1 (about 4x smaller on a real model) and CPUs can use fast integer instructions, at a small accuracy cost that Step 6.4b will measure. Storage type (chosen at export) is separate from compute type (chosen when loading), so one int8 export runs as int8 on a CPU and as int8_float16 on a GPU. Testing note: the converter and faster-whisper need a real tokenizer, so the tests build a tiny one (256 byte symbols plus Whisper's special tokens, with `<|notimestamps|>` last because faster-whisper treats every id after it as a timestamp), which keeps the full pipeline offline and fast.
+
+**Next up**
+Step 6.4b: let `transcribe` and `benchmark` accept a local CTranslate2 folder as the model, then build the speed / accuracy tradeoff table across precisions in `reports/quantization.md`.
+
+---
+
 ## 2026-11-22 · Step 6.3a: Evaluation code for fine-tuned vs base Whisper
 
 **What I did**

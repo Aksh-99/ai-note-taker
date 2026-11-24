@@ -363,5 +363,15 @@ notetaker finetune-eval --from-transcripts models/whisper-small-lora/eval_transc
 
 Writes `reports/finetune.md` and `reports/finetune.json`: pooled WER, CER and technical-term recall for both systems, per-lecture changes, the terms fixed or broken, example clips, and a paired bootstrap 95% interval for the WER change (resampling clips, so clip difficulty cancels out between the two models).
 
+#### Exporting for fast inference (int8)
+
+```bash
+# Merge the LoRA adapter into Whisper and convert to CTranslate2 with int8 weights
+notetaker export-ct2 --model-dir models/whisper-small-lora
+# -> models/whisper-small-lora-ct2-int8/  (also: -q float16 | int8_float16 | float32)
+```
+
+The adapter is folded into the weights once (W + (alpha / r) B A), so the result is a plain Whisper with no extra inference cost, then converted to the CTranslate2 format faster-whisper uses. int8 storage is about 4x smaller than float32 and fast on a CPU. The command checks the folder loads in faster-whisper and records its source and sizes in `export.json`. Runs on a CPU with the `[finetune]` extra; tests check that the float32 export reproduces the PyTorch model's outputs.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

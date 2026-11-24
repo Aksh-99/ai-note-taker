@@ -73,7 +73,7 @@ jobs:
       - name: Test
         run: make test
 
-  # Separate job for the fine-tuning code (Step 6.2). It needs PyTorch, which
+  # Separate job for the fine-tuning and export code (Steps 6.2 to 6.4). It needs PyTorch, which
   # the main job skips to stay fast. We install the small CPU-only build of
   # torch (no CUDA libraries) and run only the fine-tuning tests, which use a
   # tiny randomly initialised Whisper: no model download, a few seconds.
@@ -93,4 +93,4 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -e ".[dev,finetune]"
       - name: Test fine-tuning
-        run: pytest tests/test_finetune.py tests/test_finetune_training.py tests/test_finetune_eval.py
+        run: pytest tests/test_finetune.py tests/test_finetune_training.py tests/test_finetune_eval.py tests/test_quantize.py tests/test_quantize_export.py

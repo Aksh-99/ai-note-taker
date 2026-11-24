@@ -76,6 +76,10 @@ Commands so far:
                           off and on, compare WER + term recall with a
                           bootstrap interval, write reports/finetune.md;
                           --from-transcripts re-scores without a model
+    notetaker export-ct2 --model-dir models/whisper-small-lora
+                          merge the adapter into Whisper and convert it to a
+                          CTranslate2 folder (int8 by default) that
+                          faster-whisper loads directly
 """
 
 import argparse
@@ -88,6 +92,7 @@ from notetaker import __version__
 from notetaker.audio import AudioError
 from notetaker.chunking import Chunk
 from notetaker.config import LLMProvider, WhisperModel, get_settings
+from notetaker.quantize import QUANTIZATIONS
 
 # Stage names for `notetaker agent --steps`. Kept as a literal here (and
 # checked against agent.STEP_ORDER in the tests) so building the parser does
@@ -1389,6 +1394,52 @@ def build_parser() -> argparse.ArgumentParser:
     fe.add_argument("--seed", type=int, default=0, help="bootstrap seed (default: 0)")
     fe.add_argument(
         "--device", default=None, help="cuda or cpu (default: cuda if available)"
+    )
+
+    ex = subcommands.add_parser(
+        "export-ct2",
+        help="merge the LoRA adapter and convert to CTranslate2 (int8 by default)",
+        description=(
+            "Fold the LoRA adapter from `notetaker finetune` into the Whisper "
+            "weights, convert the result to CTranslate2 format (the engine "
+            "faster-whisper uses) with the chosen weight storage type, and "
+            "check the folder loads in faster-whisper. Needs the [finetune] "
+            "extra; runs on a CPU."
+        ),
+    )
+    ex.add_argument(
+        "--model-dir",
+        type=Path,
+        default=Path("models/whisper-small-lora"),
+        help="output of `notetaker finetune` (default: models/whisper-small-lora)",
+    )
+    ex.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="folder for the export (default: <model-dir>-ct2-<quantization>)",
+    )
+    ex.add_argument(
+        "-q",
+        "--quantization",
+        choices=QUANTIZATIONS,
+        default="int8",
+        help="how weights are stored (default: int8, about 4x smaller than "
+        "float32 and fast on CPU)",
+    )
+    ex.add_argument(
+        "--keep-merged",
+        type=Path,
+        default=None,
+        help="also keep the merged float32 Hugging Face model in this folder",
+    )
+    ex.add_argument(
+        "--no-verify",
+        action="store_true",
+        help="skip the check that the export loads in faster-whisper",
+    )
+    ex.add_argument(
+        "--force", action="store_true", help="replace a previous export in --out"
     )
     return parser
 
@@ -3105,6 +3156,31 @@ def run_finetune_eval_cmd(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_export_ct2(args: argparse.Namespace) -> int:
+    """Handle `notetaker export-ct2`: LoRA merge + CTranslate2 conversion."""
+    from notetaker.finetune import FinetuneError
+    from notetaker.quantize import export_ct2
+
+    out = args.out or args.model_dir.with_name(
+        f"{args.model_dir.name}-ct2-{args.quantization}"
+    )
+    try:
+        result = export_ct2(
+            args.model_dir,
+            out,
+            quantization=args.quantization,
+            force=args.force,
+            verify=not args.no_verify,
+            keep_merged=args.keep_merged,
+            log=lambda message: print(message, flush=True),
+        )
+    except FinetuneError as error:
+        print(f"Error: {error}")
+        return 1
+    print(f"Wrote {Path(result.out_dir) / 'export.json'}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -3160,6 +3236,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_finetune_cmd(args)
     if args.command == "finetune-eval":
         return run_finetune_eval_cmd(args)
+    if args.command == "export-ct2":
+        return run_export_ct2(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

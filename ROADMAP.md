@@ -54,7 +54,8 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 6.2b Colab/Kaggle free-GPU notebook that runs `notetaker finetune` on Whisper small and saves the adapter
 - [x] 6.3a Evaluation code: `notetaker finetune-eval` (adapter off vs on on the test clips, pooled WER/CER + term recall, paired bootstrap interval, `reports/finetune.md`), notebook section, tests on a tiny Whisper
 - [x] 6.3b (moved to 8.2b: the real GPU run needs a human-started Colab/Kaggle session)
-- [ ] 6.4 int8 quantization (CTranslate2) of the best model, speed/accuracy tradeoff table
+- [x] 6.4a `notetaker export-ct2`: merge the LoRA adapter into Whisper, convert to CTranslate2 (int8 / float16 / float32 storage), check it loads in faster-whisper; notebook section; tests on a tiny Whisper
+- [ ] 6.4b Speed/accuracy tradeoff table: let `transcribe` / `benchmark` take a local CT2 folder as the model, then time + score each precision (WER, term recall, RTF, size) on the test clips, `reports/quantization.md`
 
 ## Phase 7: API + UI
 - [ ] 7.1 FastAPI backend: upload audio, job status, fetch results
