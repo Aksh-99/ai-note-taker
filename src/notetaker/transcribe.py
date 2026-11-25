@@ -48,6 +48,7 @@ import numpy as np
 from notetaker.audio import load_audio
 from notetaker.chunking import Chunk, plan_chunks
 from notetaker.config import get_settings
+from notetaker.model_source import auto_compute_type, display_name, stored_quantization
 
 # Whisper only understands 16 kHz audio. faster-whisper assumes any NumPy array
 # it is given is already at this rate, so we always decode at exactly 16000 Hz
@@ -185,16 +186,23 @@ def resolve_device(device: str) -> str:
     return device
 
 
-def resolve_compute_type(compute_type: str, device: str) -> str:
+def resolve_compute_type(
+    compute_type: str, device: str, stored: str | None = None
+) -> str:
     """Pick numeric precision when the setting is 'auto'.
 
     GPUs are fastest with float16 (16-bit floats). CPUs have no fast float16
     math, but they do have fast 8-bit integer math, so int8 is the best CPU
     choice: weights are stored as int8 plus a scale factor per row, which cuts
     memory about 4x versus float32 with a very small accuracy cost.
+
+    `stored` is how a local export keeps its weights (from its export.json,
+    Step 6.4b). When given, "auto" follows it instead, so a float32 export
+    runs as float32 rather than being silently squeezed to int8. See
+    `model_source.auto_compute_type` for the full table.
     """
     if compute_type == "auto":
-        return "float16" if device == "cuda" else "int8"
+        return auto_compute_type(stored, device)
     return compute_type
 
 
@@ -209,13 +217,18 @@ def load_model(
 ) -> SpeechModel:
     """Load (downloading on first use) a faster-whisper model.
 
-    Every argument defaults to the configured setting (NOTETAKER_WHISPER_*).
+    `model_name` is a size like "small" or, since Step 6.4b, the path of a
+    local CTranslate2 folder made by `notetaker export-ct2`; faster-whisper's
+    WhisperModel accepts both. Every argument defaults to the configured
+    setting (NOTETAKER_WHISPER_*).
     """
     settings = get_settings()
     model_name = model_name or settings.whisper_model
     device = resolve_device(device or settings.whisper_device)
     compute_type = resolve_compute_type(
-        compute_type or settings.whisper_compute_type, device
+        compute_type or settings.whisper_compute_type,
+        device,
+        stored=stored_quantization(model_name),
     )
     # Imported here rather than at the top of the file: faster-whisper pulls in
     # heavy native libraries, and this way `import notetaker.transcribe` stays
@@ -309,8 +322,10 @@ def transcribe(
             step (beam search). 1 is greedy and fastest; 5 is Whisper's
             standard setting and is usually a little more accurate.
         word_timestamps: also return per-word start and end times.
-        model_name: label stored in the result. Defaults to the configured
-            model size.
+        model_name: which model to load when `model` is None: a size, or a
+            local CTranslate2 folder (Step 6.4b). Also recorded in the result
+            (a folder is recorded by its own name, not its full path).
+            Defaults to the configured model size.
         max_chunk_s: longest piece sent to the model at once, in seconds.
             None uses NOTETAKER_CHUNK_MAX_SECONDS; 0 disables chunking.
         on_chunk: optional progress callback, see `ChunkCallback`.
@@ -390,5 +405,5 @@ def transcribe(
             language_probability if language_probability is not None else 0.0, 4
         ),
         duration=round(duration, 3),
-        model=model_name,
+        model=display_name(model_name),
     )

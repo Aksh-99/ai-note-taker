@@ -331,3 +331,55 @@ def test_cli_exports(
     out = tmp_path / "whisper-tiny-lora-ct2-int8"
     assert (out / "model.bin").is_file()
     assert "smaller" in text and "export.json" in text
+
+
+def test_exports_are_usable_as_a_model_everywhere(
+    model_dir: Path, loader, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Step 6.4b: real exports work as `transcribe` and `benchmark` models.
+
+    No fakes below the CLI: `notetaker.transcribe.load_model` hands the
+    folder to the real faster-whisper, and "auto" picks the compute type
+    from export.json (int8 for the int8 export, float32 for float32).
+    """
+    from notetaker import transcribe as tr
+    from notetaker.benchmark import benchmark_model
+    from notetaker.config import get_settings
+
+    for var in ("NOTETAKER_WHISPER_DEVICE", "NOTETAKER_WHISPER_COMPUTE_TYPE"):
+        monkeypatch.delenv(var, raising=False)
+    get_settings.cache_clear()
+    tr.load_model.cache_clear()
+    exports = {}
+    for quantization in ("int8", "float32"):
+        out = tmp_path / f"ct2-{quantization}"
+        export_ct2(
+            model_dir,
+            out,
+            quantization=quantization,
+            load_model=loader,
+            verify=False,
+            log=lambda _: None,
+        )
+        exports[quantization] = out
+
+    audio = np.random.RandomState(0).randn(32_000).astype(np.float32) * 0.1
+    transcript = tr.transcribe(
+        audio, model_name=str(exports["int8"]), language="en", beam_size=1
+    )
+    assert transcript.model == "ct2-int8"
+    assert transcript.duration == pytest.approx(2.0, abs=0.01)
+
+    results = {
+        q: benchmark_model(audio, str(path), device="cpu", language="en", beam_size=1)
+        for q, path in exports.items()
+    }
+    assert results["int8"].compute_type == "int8"
+    assert results["float32"].compute_type == "float32"
+    assert results["int8"].quantization == "int8"
+    # int8 weights take about a quarter of the space of float32 weights (the
+    # tokenizer and config files are the same size in both, so less than 4x
+    # overall on a model this tiny, but clearly smaller).
+    assert results["int8"].model_size_mb < results["float32"].model_size_mb
+    tr.load_model.cache_clear()
+    get_settings.cache_clear()

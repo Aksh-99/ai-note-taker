@@ -92,6 +92,12 @@ from notetaker import __version__
 from notetaker.audio import AudioError
 from notetaker.chunking import Chunk
 from notetaker.config import LLMProvider, WhisperModel, get_settings
+from notetaker.model_source import (
+    display_name,
+    is_size_name,
+    parse_model_arg,
+    stored_quantization,
+)
 from notetaker.quantize import QUANTIZATIONS
 
 # Stage names for `notetaker agent --steps`. Kept as a literal here (and
@@ -140,11 +146,18 @@ def build_parser() -> argparse.ArgumentParser:
     tr.add_argument(
         "-m",
         "--model",
-        # get_args() pulls the allowed strings out of the Literal type in
-        # config.py, so the CLI and the settings can never disagree.
-        choices=get_args(WhisperModel),
+        # `type=` runs our own check on the raw string: a known Whisper size
+        # passes as-is, anything else must be a CTranslate2 folder from
+        # `notetaker export-ct2` (Step 6.4b). A bad value gives a normal
+        # argparse usage error, like `choices=` did before.
+        type=parse_model_arg,
         default=None,
-        help="Whisper size (default: NOTETAKER_WHISPER_MODEL)",
+        metavar="SIZE_OR_FOLDER",
+        help=(
+            f"Whisper size ({', '.join(get_args(WhisperModel))}) or a local "
+            "CTranslate2 folder from `notetaker export-ct2` "
+            "(default: NOTETAKER_WHISPER_MODEL)"
+        ),
     )
     tr.add_argument(
         "-l", "--language", default=None, help="language code like 'en' (default: auto)"
@@ -174,9 +187,13 @@ def build_parser() -> argparse.ArgumentParser:
         "-m",
         "--models",
         nargs="+",  # one or more values: -m tiny base small
-        choices=get_args(WhisperModel),
+        type=parse_model_arg,  # sizes or export-ct2 folders (Step 6.4b)
         default=["tiny", "base", "small"],
-        help="Whisper sizes to compare (default: tiny base small)",
+        metavar="SIZE_OR_FOLDER",
+        help=(
+            "Whisper sizes and/or local CTranslate2 folders to compare, e.g. "
+            "-m small models/whisper-small-lora-ct2-int8 (default: tiny base small)"
+        ),
     )
     bm.add_argument(
         "--repeats", type=int, default=1, help="timed runs per model (median kept)"
@@ -1516,6 +1533,20 @@ def print_chunk_progress(index: int, total: int, chunk: Chunk) -> None:
         )
 
 
+def describe_model(spec: str) -> str:
+    """One-line description for progress messages.
+
+    "whisper-small" for a Hub size; for a local export, its folder name plus
+    the storage type when export.json records it, e.g.
+    "local model whisper-small-lora-ct2-int8 (int8)".
+    """
+    if is_size_name(spec):
+        return f"whisper-{spec}"
+    stored = stored_quantization(spec)
+    suffix = f" ({stored})" if stored else ""
+    return f"local model {display_name(spec)}{suffix}"
+
+
 def run_transcribe(args: argparse.Namespace) -> int:
     """Handle `notetaker transcribe`: transcribe one file and write outputs."""
     # Imported here so `notetaker --version` and `notetaker config` do not pay
@@ -1544,7 +1575,7 @@ def run_transcribe(args: argparse.Namespace) -> int:
     # next to the transcript they came from.
     out_dir = args.output_dir or settings.output_dir / audio_path.stem
     model_name = args.model or settings.whisper_model
-    print(f"Transcribing {audio_path} with whisper-{model_name} ...")
+    print(f"Transcribing {audio_path} with {describe_model(model_name)} ...")
     try:
         transcript = transcribe(
             audio_path,
@@ -1608,7 +1639,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
         seconds = len(audio) / WHISPER_SAMPLE_RATE
         print(f"Benchmarking {audio_path} ({seconds:.1f} s of audio)")
         for name in args.models:
-            print(f"  whisper-{name} ...", flush=True)
+            print(f"  {describe_model(name)} ...", flush=True)
             try:
                 if args.no_isolate:
                     result = benchmark_model(audio, name, **options)

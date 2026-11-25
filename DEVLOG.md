@@ -4,6 +4,30 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-24 · Step 6.4b: Local CTranslate2 folders as models
+
+**What I did**
+- Split the old Step 6.4b in two: 6.4b (today) makes exported models usable everywhere; 6.4c builds the speed / accuracy tradeoff table across precisions on the test clips
+- New module `src/notetaker/model_source.py` (no heavy imports) that decides what a `--model` string names:
+  - `resolve_model_source`: a known size ("tiny" ... "large-v3") is a Hub model; anything else must be a CTranslate2 folder containing `model.bin` and `config.json`. Clear errors for a missing path, a file, an empty folder, and especially the LoRA adapter folder ("run `notetaker export-ct2 --model-dir ...` first"). A size name wins over a same-named folder; `./small` picks the folder
+  - Reads `export.json` (written by Step 6.4a) for the storage type, and measures the folder size
+  - `auto_compute_type`: with the compute type on "auto", an export runs at the precision it was stored in (int8 as int8; float32 as float32; float16 as float16 on a GPU and float32 on a CPU; int8 as int8_float16 on a GPU). Without this, "auto" on a CPU would have turned every export into int8 and a precision comparison would compare int8 with int8
+  - `model_size_mb`: folder size, or for a Hub model the size of its cached download, found with `local_files_only=True` so it can never trigger a download
+- `transcribe.py`: `load_model` passes the folder straight to faster-whisper (its `WhisperModel` already accepts a path) with the matching compute type; transcripts record the folder's name ("whisper-small-lora-ct2-int8"), not its full path
+- `benchmark.py`: results gain `model_path`, `quantization` and `model_size_mb` (optional, so old `benchmark.json` files still load); the table gains "Stored" and "Size (MB)" columns
+- CLI: `notetaker transcribe -m` and `notetaker benchmark -m` take sizes or folders, validated by a custom argparse `type=` function so a bad value is a normal usage error before any audio is decoded; progress lines say "local model whisper-small-lora-ct2-int8 (int8)"
+- `dir_size_mb` moved from `quantize.py` to `model_source.py` (still importable from `quantize`)
+- 37 new tests: 36 in `tests/test_model_source.py` (fake export folders, no model loaded: name vs folder rules, every error message, the compute-type table, that `load_model` hands faster-whisper the path and precision, transcript labels, benchmark fields and table, the CLI including a 3-model benchmark of a size plus int8 and float32 exports) and 1 in `tests/test_quantize_export.py` that exports a tiny Whisper as int8 and float32 and runs the real `transcribe` and `benchmark_model` on both folders. `make check` passes (1061 tests, lint clean)
+- README: "Using an exported model" section
+
+**How it works**
+faster-whisper's `WhisperModel` already accepts either a size name (it downloads that model) or a path to a converted folder, so loading needed no new machinery. The work was everything around loading. First, validation: argparse lets you give each option a `type=` function that receives the raw string; ours resolves it and raises `ArgumentTypeError` with a helpful message, which argparse prints as a normal usage error, so a typo fails instantly rather than after decoding an hour of audio. Second, precision: an export stores weights in one format (storage type, chosen at export time), but CTranslate2 can compute in another (compute type, chosen at load time) and converts on load. The project's old "auto" rule was simply "int8 on CPU, float16 on GPU", which ignores how the weights were stored. Now "auto" reads `export.json` and keeps the stored precision unless the device cannot do it fast (CPUs have no fast float16 math, so float16 weights are widened to float32 there). This matters for Step 6.4c: to measure what int8 rounding costs, the float32 export must really run in float32. Third, labels and size: reports show the folder name, and the benchmark records size on disk, one axis of the speed / accuracy / size tradeoff.
+
+**Next up**
+Step 6.4c: run each precision of the export on the held-out test clips and build the tradeoff table (WER, term recall, real-time factor, size) in `reports/quantization.md`.
+
+---
+
 ## 2026-11-23 · Step 6.4a: Export the fine-tuned Whisper to CTranslate2 (int8)
 
 **What I did**

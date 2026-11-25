@@ -74,6 +74,10 @@ from notetaker.finetune import (
     load_finetuned,
 )
 
+# dir_size_mb moved to model_source.py in Step 6.4b (benchmark needs it
+# without the fine-tuning code); imported here so existing callers still work.
+from notetaker.model_source import dir_size_mb
+
 # Weight storage types we offer. CTranslate2 knows a few more (int16,
 # bfloat16, ...), but these four cover the useful cases:
 #   int8          smallest (about 1/4 of float32), fast on CPU, fine on GPU
@@ -96,12 +100,6 @@ EXPORT_SUMMARY = "export.json"
 # Files CTranslate2's converter writes. Used to check an output folder looks
 # like a complete export and to refuse to delete folders that are not ours.
 CT2_FILES = ("model.bin", "config.json", "vocabulary.json")
-
-
-def dir_size_mb(path: str | Path) -> float:
-    """Total size of every file under `path`, in megabytes (1 MB = 2**20)."""
-    total = sum(f.stat().st_size for f in Path(path).rglob("*") if f.is_file())
-    return total / 2**20
 
 
 # ---------------------------------------------------------------------------

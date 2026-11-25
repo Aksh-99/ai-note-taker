@@ -1,5 +1,11 @@
 """Speed and memory benchmark for Whisper model sizes (tiny / base / small ...).
 
+Since Step 6.4b a "model" can also be a local CTranslate2 folder made by
+`notetaker export-ct2` (for example the fine-tuned model stored as int8), so
+the same benchmark compares precisions as well as sizes. Each result then
+also records the folder path, how its weights are stored, and its size on
+disk.
+
 Why this exists:
     Bigger Whisper models are more accurate but slower and hungrier. Before
     choosing a default (and before the accuracy numbers of Phase 2), we need
@@ -55,6 +61,12 @@ from typing import Any
 import numpy as np
 
 from notetaker.config import get_settings
+from notetaker.model_source import (
+    display_name,
+    is_size_name,
+    model_size_mb,
+    stored_quantization,
+)
 from notetaker.transcribe import (
     WHISPER_SAMPLE_RATE,
     SpeechModel,
@@ -113,6 +125,13 @@ class BenchmarkResult:
     baseline_rss_mb: float | None = None
     n_segments: int = 0
     n_words: int = 0
+    # Added in Step 6.4b; all optional so older benchmark.json files load.
+    # model_path: the folder for a local model, None for a Hub size name.
+    # quantization: storage type from the folder's export.json, if any.
+    # model_size_mb: size on disk, None if unknown (Hub model not cached).
+    model_path: str | None = None
+    quantization: str | None = None
+    model_size_mb: float | None = None
 
     @property
     def median_transcribe_seconds(self) -> float:
@@ -179,6 +198,8 @@ def benchmark_model(
 ) -> BenchmarkResult:
     """Load one model and time `repeats` transcriptions of a 16 kHz waveform.
 
+    `model_name` is a size name or a local CTranslate2 folder (Step 6.4b).
+
     `clock` defaults to `time.perf_counter`, Python's highest-resolution timer
     for measuring durations (unlike `time.time`, it never jumps if the system
     clock is adjusted).
@@ -190,9 +211,14 @@ def benchmark_model(
     loader = loader or _default_loader
     settings = get_settings()
     device = resolve_device(device or settings.whisper_device)
+    # For a local export, "auto" follows how its weights are stored (int8 runs
+    # as int8, float32 as float32), so comparing exports compares precisions.
+    stored = stored_quantization(model_name)
     compute_type = resolve_compute_type(
-        compute_type or settings.whisper_compute_type, device
+        compute_type or settings.whisper_compute_type, device, stored=stored
     )
+    label = display_name(model_name)
+    is_local = not is_size_name(model_name) and Path(model_name).is_dir()
     audio_seconds = len(audio) / WHISPER_SAMPLE_RATE
 
     # Baseline taken *before* the model exists: Python, numpy and the audio.
@@ -217,7 +243,7 @@ def benchmark_model(
 
     assert transcript is not None  # repeats >= 1 guarantees one run
     return BenchmarkResult(
-        model=model_name,
+        model=label,
         device=device,
         compute_type=compute_type,
         audio_seconds=audio_seconds,
@@ -228,6 +254,11 @@ def benchmark_model(
         baseline_rss_mb=baseline,
         n_segments=len(transcript.segments),
         n_words=len(transcript.text.split()),
+        model_path=str(Path(model_name).resolve()) if is_local else None,
+        quantization=stored,
+        # Measured after loading: for a Hub model the download now exists in
+        # the cache (unless a test's fake loader skipped it), so we can size it.
+        model_size_mb=model_size_mb(model_name),
     )
 
 
@@ -299,15 +330,18 @@ def to_markdown(results: Sequence[BenchmarkResult], audio_name: str) -> str:
         f"- Python {sys.version.split()[0]} on {sys.platform}",
         "",
         "RTF = transcription time / audio length (lower is better). "
-        "Model RAM = peak RAM minus the baseline before loading the model.",
+        "Model RAM = peak RAM minus the baseline before loading the model. "
+        "Stored = how the weights are kept on disk (local exports only); "
+        "Compute = the precision actually used.",
         "",
-        "| Model | Compute | Load (s) | Transcribe (s) | RTF | x real time "
-        "| Peak RAM (MB) | Model RAM (MB) | Words |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+        "| Model | Stored | Compute | Size (MB) | Load (s) | Transcribe (s) | RTF "
+        "| x real time | Peak RAM (MB) | Model RAM (MB) | Words |",
+        "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for r in results:
         lines.append(
-            f"| {r.model} | {r.compute_type} | {r.load_seconds:.2f} "
+            f"| {r.model} | {r.quantization or '-'} | {r.compute_type} "
+            f"| {_fmt_mb(r.model_size_mb)} | {r.load_seconds:.2f} "
             f"| {r.median_transcribe_seconds:.2f} | {r.rtf:.3f} "
             f"| {r.speedup:.1f} | {_fmt_mb(r.peak_rss_mb)} "
             f"| {_fmt_mb(r.model_rss_mb)} | {r.n_words} |"

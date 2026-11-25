@@ -373,5 +373,18 @@ notetaker export-ct2 --model-dir models/whisper-small-lora
 
 The adapter is folded into the weights once (W + (alpha / r) B A), so the result is a plain Whisper with no extra inference cost, then converted to the CTranslate2 format faster-whisper uses. int8 storage is about 4x smaller than float32 and fast on a CPU. The command checks the folder loads in faster-whisper and records its source and sizes in `export.json`. Runs on a CPU with the `[finetune]` extra; tests check that the float32 export reproduces the PyTorch model's outputs.
 
+#### Using an exported model
+
+Anywhere a command takes a Whisper size, it also takes an export folder:
+
+```bash
+notetaker transcribe lecture01.mp3 -m models/whisper-small-lora-ct2-int8
+# compare the stock model with two precisions of the fine-tuned one
+notetaker benchmark lecture01.mp3 -m small models/whisper-small-lora-ct2-int8 \
+    models/whisper-small-lora-ct2-float32 --max-seconds 600
+```
+
+With the compute type left on `auto`, each export runs at the precision it was stored in (read from its `export.json`): int8 as int8, float32 as float32, float16 as float16 on a GPU (float32 on a CPU). The benchmark table gains "Stored" and "Size (MB)" columns. A size name always wins over a folder with the same name, so use `./small` for a folder called `small`. Pointing `-m` at the LoRA adapter folder by mistake gives an error telling you to run `export-ct2` first.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.
