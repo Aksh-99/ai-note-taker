@@ -83,15 +83,21 @@ def notetaker_commands(notebook: dict) -> list[str]:
     return commands
 
 
-def test_every_notetaker_command_parses(notebook: dict) -> None:
+def test_every_notetaker_command_parses(notebook: dict, tmp_path: Path) -> None:
     commands = notetaker_commands(notebook)
     assert len(commands) >= 5  # evalset, finetune-data x2, finetune x2
     parser = build_parser()
+    # `quantize-eval -m` checks at parse time that each model folder exists
+    # and holds model.bin + config.json, so the dummy path must be one.
+    dummy = tmp_path / "model"
+    dummy.mkdir()
+    (dummy / "model.bin").write_bytes(b"")
+    (dummy / "config.json").write_text("{}")
     for command in commands:
         # IPython replaces {NAME} with the Python value before running the
-        # line. Substitute a dummy path; {ONLY} becomes a real --only list.
+        # line. Substitute the dummy path; {ONLY} becomes a real --only list.
         filled = command.replace("{ONLY}", "--only mit-18.06-lec01")
-        filled = re.sub(r"\{[^}]+\}", "/tmp/x", filled)
+        filled = re.sub(r"\{[^}]+\}", str(dummy), filled)
         try:
             parser.parse_args(shlex.split(filled))
         except SystemExit:  # argparse exits on unknown flags
@@ -106,6 +112,7 @@ def test_notebook_covers_the_whole_pipeline(notebook: dict) -> None:
         "finetune ",
         "finetune-eval",
         "export-ct2",
+        "quantize-eval",
     ):
         assert step in commands
     text = all_text(notebook)

@@ -386,5 +386,20 @@ notetaker benchmark lecture01.mp3 -m small models/whisper-small-lora-ct2-int8 \
 
 With the compute type left on `auto`, each export runs at the precision it was stored in (read from its `export.json`): int8 as int8, float32 as float32, float16 as float16 on a GPU (float32 on a CPU). The benchmark table gains "Stored" and "Size (MB)" columns. A size name always wins over a folder with the same name, so use `./small` for a folder called `small`. Pointing `-m` at the LoRA adapter folder by mistake gives an error telling you to run `export-ct2` first.
 
+#### Speed vs accuracy across precisions
+
+```bash
+# Reference first (float32), then the smaller precisions. Writes
+# reports/quantization.md + .json and saves every transcript and timing to
+# reports/quantization_runs.json
+notetaker export-ct2 -q float32 --out models/whisper-small-lora-ct2-float32
+notetaker quantize-eval -m models/whisper-small-lora-ct2-float32 \
+    models/whisper-small-lora-ct2-int8
+# Re-score saved runs (new term list, new report layout): no model needed
+notetaker quantize-eval --from-runs reports/quantization_runs.json
+```
+
+Each model transcribes the held-out test clips with the same settings, timed after one untimed warm-up call. The table shows size on disk, real-time factor, WER, CER, term recall, the WER change against the first model with a 95% paired bootstrap interval, and "drift": the share of words that differ from the first model's own transcripts, which isolates what rounding changed. The report ends with a pick: the fastest model whose WER is not measurably worse than the reference.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

@@ -383,3 +383,56 @@ def test_exports_are_usable_as_a_model_everywhere(
     assert results["int8"].model_size_mb < results["float32"].model_size_mb
     tr.load_model.cache_clear()
     get_settings.cache_clear()
+
+
+def test_quantize_eval_on_real_exports(
+    model_dir: Path, loader, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Step 6.4c end to end: real int8 and float32 exports, real faster-whisper.
+
+    The tiny random Whisper writes nonsense, so we check the plumbing (each
+    export runs at its stored precision, every clip is timed and scored,
+    int8 is smaller), not the accuracy numbers.
+    """
+    from notetaker.config import get_settings
+    from notetaker.quantize_eval import load_runs, run_quantize_eval, write_report
+    from notetaker.term_recall import make_term
+    from test_quantize_eval import make_dataset
+
+    for var in ("NOTETAKER_WHISPER_DEVICE", "NOTETAKER_WHISPER_COMPUTE_TYPE"):
+        monkeypatch.delenv(var, raising=False)
+    get_settings.cache_clear()
+    exports = []
+    for quantization in ("float32", "int8"):
+        out = tmp_path / f"ct2-{quantization}"
+        export_ct2(
+            model_dir,
+            out,
+            quantization=quantization,
+            load_model=loader,
+            verify=False,
+            log=lambda _: None,
+        )
+        exports.append(str(out))
+
+    data = make_dataset(tmp_path / "finetune")
+    report = run_quantize_eval(
+        exports,
+        data,
+        [make_term("eigenvalue")],
+        runs_path=tmp_path / "runs.json",
+        beam_size=1,
+        device="cpu",
+        resamples=50,
+        log=lambda _: None,
+    )
+    f32, int8 = report.models
+    assert (f32.run.compute_type, int8.run.compute_type) == ("float32", "int8")
+    assert int8.run.size_mb < f32.run.size_mb
+    assert f32.run.transcribe_seconds > 0 and int8.run.rtf > 0
+    assert report.clips == 3 and int8.drift is not None
+    _, _, runs = load_runs(tmp_path / "runs.json")
+    assert all(len(run.texts) == 3 for run in runs)
+    md = write_report(report, tmp_path / "reports")[1].read_text()
+    assert "ct2-int8" in md and "**Pick:**" in md
+    get_settings.cache_clear()

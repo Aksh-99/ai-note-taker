@@ -4,6 +4,29 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-25 · Step 6.4c: Speed / accuracy / size tradeoff across precisions
+
+**What I did**
+- New module `src/notetaker/quantize_eval.py` and a new command, `notetaker quantize-eval`:
+  - Takes one or more models (Whisper sizes or `export-ct2` folders); the **first** is the reference, normally the float32 export
+  - `run_model`: loads one model, does one untimed warm-up transcription, then times every held-out clip with identical settings (same beam size and language, no chunking, no word timestamps), then frees the model before the next one loads
+  - `run_quantize_eval`: decodes the clip WAVs once (so file reading is in nobody's time), runs every model, and saves all transcripts and timings to `reports/quantization_runs.json`
+  - `evaluate_runs` (re-score mode, `--from-runs`, no model needed): per model, pooled WER / CER and term recall against the captions, real-time factor, size on disk, a paired bootstrap 95% interval for the WER change against the reference, and **drift**, the WER of the model's transcripts measured against the reference model's transcripts
+  - `recommend`: the fastest model whose WER is not measurably worse than the reference (interval reaches zero or below), ties broken by size
+  - Writes `reports/quantization.md` (the tradeoff table, a plain sentence per model like "2.1x the speed, 3.8x smaller, WER +0.2 pp", and the pick) plus `quantization.json`
+- Reused the Step 6.3 building blocks instead of copying them: `ClipScore` and `SystemSummary` key their counts by system name, so here the "systems" are just model labels, and `paired_bootstrap` is used as is
+- Notebook: new cell after the int8 export that also exports float32 and float16 and runs `quantize-eval`; its report lands in the zip
+- 23 new tests: 22 in `tests/test_quantize_eval.py` (fake models and fake export folders, no torch, run in the main CI job: scoring, drift edge cases, skipped empty captions, input checks, the recommendation rule, save / load round trip, warm-up not timed via a fake clock, "auto" compute type follows storage, end to end, CLI full run then re-score, CLI errors) and 1 in `tests/test_quantize_export.py` that exports a tiny Whisper as float32 and int8 and runs the real pipeline through faster-whisper. The notebook test now also checks the `quantize-eval` line parses. `make check` passes (1084 tests, lint clean), and so does the fine-tuning CI job's test set
+- Real numbers need the fine-tuned adapter, which comes from the Colab/Kaggle run already tracked as 8.2b, so that step now also commits `reports/quantization.md`
+
+**How it works**
+Quantization trades accuracy for speed and size, so a fair comparison needs all three axes measured on the same data. Speed is the real-time factor: total seconds spent transcribing divided by total seconds of audio, after one warm-up call, because the first call into CTranslate2 allocates memory and selects kernels and would otherwise penalise whichever model happened to run first. Accuracy is pooled WER against the human captions, plus a paired bootstrap interval for the difference from float32: resample clips with replacement thousands of times, keep each clip's two error counts together, and read off the 2.5th and 97.5th percentiles of the WER difference. The new idea is drift. WER against the captions mixes two things, Whisper's own mistakes and the effect of rounding. Scoring int8's output against float32's output instead cancels the shared mistakes, so drift answers "how often did rounding change a word at all", which is the cleanest measure of quantization damage (if drift is 1%, the int8 model wrote the same thing as float32 99% of the time). Because "auto" already runs each export at its stored precision (Step 6.4b), the int8 row really is int8 math and the float32 row really is float32 math.
+
+**Next up**
+Step 7.1: FastAPI backend (upload audio, job status, fetch results).
+
+---
+
 ## 2026-11-24 · Step 6.4b: Local CTranslate2 folders as models
 
 **What I did**

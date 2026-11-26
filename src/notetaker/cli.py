@@ -80,6 +80,10 @@ Commands so far:
                           merge the adapter into Whisper and convert it to a
                           CTranslate2 folder (int8 by default) that
                           faster-whisper loads directly
+    notetaker quantize-eval -m models/x-ct2-float32 models/x-ct2-int8
+                          time and score each model (precision) on the
+                          held-out clips: WER, term recall, real-time factor,
+                          size; writes reports/quantization.md
 """
 
 import argparse
@@ -1458,6 +1462,90 @@ def build_parser() -> argparse.ArgumentParser:
     ex.add_argument(
         "--force", action="store_true", help="replace a previous export in --out"
     )
+
+    qe = subcommands.add_parser(
+        "quantize-eval",
+        help="speed / accuracy / size table across model precisions",
+        description=(
+            "Transcribe the held-out clips with each model (Whisper sizes or "
+            "export-ct2 folders), timing every clip, then compare pooled WER / "
+            "CER, term recall, real-time factor and size on disk. The FIRST "
+            "model is the reference (normally the float32 export): the others "
+            "get a paired bootstrap interval for their WER change and a drift "
+            "score (how many words differ from the reference's transcripts). "
+            "Writes <output>/quantization.json and quantization.md. With "
+            "--from-runs it only re-scores a saved runs file: no model needed."
+        ),
+    )
+    qe.add_argument(
+        "-m",
+        "--models",
+        nargs="+",  # one or more values: -m a b c
+        type=parse_model_arg,
+        default=None,
+        help="models to compare, reference first (sizes or export-ct2 folders)",
+    )
+    qe.add_argument(
+        "--data-dir",
+        type=Path,
+        default=None,
+        help="dataset from finetune-data (default: <NOTETAKER_DATA_DIR>/finetune)",
+    )
+    qe.add_argument(
+        "--split",
+        choices=["train", "val", "test"],
+        default="test",
+        help="which clips to evaluate (default: test)",
+    )
+    qe.add_argument(
+        "--from-runs",
+        type=Path,
+        default=None,
+        help="re-score this saved runs JSON instead of running models",
+    )
+    qe.add_argument(
+        "--runs",
+        type=Path,
+        default=None,
+        help="where to save transcripts + timings "
+        "(default: <output-dir>/quantization_runs.json)",
+    )
+    qe.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=Path("reports"),
+        help="where to write quantization.json + .md (default: reports)",
+    )
+    qe.add_argument(
+        "--terms",
+        type=Path,
+        default=Path("eval/technical_terms.json"),
+        help="curated term list (default: eval/technical_terms.json)",
+    )
+    qe.add_argument(
+        "--limit", type=int, default=None, help="only the first N clips (smoke test)"
+    )
+    qe.add_argument(
+        "--beam-size", type=int, default=5, help="decoder beam size (default: 5)"
+    )
+    qe.add_argument(
+        "--language", default="en", help="spoken language code (default: en)"
+    )
+    qe.add_argument("--device", default=None, help="cpu or cuda (default: config)")
+    qe.add_argument(
+        "--compute-type",
+        default=None,
+        help="force one compute type for every model (default: auto, which "
+        "runs each export at the precision it was stored in)",
+    )
+    qe.add_argument(
+        "--bootstrap",
+        type=int,
+        default=2000,
+        help="bootstrap resamples for the WER intervals (default: 2000)",
+    )
+    qe.add_argument("--seed", type=int, default=0, help="bootstrap seed (default: 0)")
     return parser
 
 
@@ -3212,6 +3300,83 @@ def run_export_ct2(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_quantize_eval_cmd(args: argparse.Namespace) -> int:
+    """Handle `notetaker quantize-eval`: the precision tradeoff table."""
+    from notetaker.finetune import FinetuneError
+    from notetaker.quantize_eval import (
+        RUNS_FILENAME,
+        evaluate_runs,
+        load_runs,
+        recommend,
+        run_quantize_eval,
+        write_report,
+    )
+    from notetaker.term_recall import load_terms
+
+    if args.limit is not None and args.limit < 1:
+        print("Error: --limit must be at least 1")
+        return 1
+    if args.beam_size < 1:
+        print("Error: --beam-size must be at least 1")
+        return 1
+    if not args.from_runs and not args.models:
+        print("Error: give the models to compare with -m (or --from-runs FILE)")
+        return 1
+    try:
+        terms = load_terms(args.terms)
+    except (OSError, ValueError) as error:
+        print(f"Error: cannot read term list {args.terms}: {error}")
+        return 1
+    try:
+        if args.from_runs:
+            split, clips, runs = load_runs(args.from_runs)
+            if args.limit is not None:
+                clips = clips[: args.limit]
+                for run in runs:
+                    run.texts = run.texts[: args.limit]
+            report = evaluate_runs(
+                clips,
+                runs,
+                terms,
+                split=split,
+                resamples=args.bootstrap,
+                seed=args.seed,
+            )
+        else:
+            try:
+                settings = get_settings()
+            except ValidationError as error:
+                print(f"Invalid configuration:\n{error}")
+                return 1
+            report = run_quantize_eval(
+                args.models,
+                args.data_dir or settings.data_dir / "finetune",
+                terms,
+                split=args.split,
+                runs_path=args.runs or args.output_dir / RUNS_FILENAME,
+                limit=args.limit,
+                beam_size=args.beam_size,
+                language=args.language or None,
+                device=args.device,
+                compute_type=args.compute_type,
+                resamples=args.bootstrap,
+                seed=args.seed,
+                log=lambda message: print(message, flush=True),
+            )
+    except (FinetuneError, ValueError) as error:
+        print(f"Error: {error}")
+        return 1
+    for model in report.models:
+        print(
+            f"{model.run.label}: WER {model.summary.wer:.1%}, "
+            f"term recall {model.summary.term_recall:.1%}, RTF {model.run.rtf:.3f}"
+        )
+    print(f"Pick: {recommend(report)}")
+    for path in write_report(report, args.output_dir):
+        print(f"Wrote {path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -3269,6 +3434,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_finetune_eval_cmd(args)
     if args.command == "export-ct2":
         return run_export_ct2(args)
+    if args.command == "quantize-eval":
+        return run_quantize_eval_cmd(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

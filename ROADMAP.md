@@ -56,7 +56,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 - [x] 6.3b (moved to 8.2b: the real GPU run needs a human-started Colab/Kaggle session)
 - [x] 6.4a `notetaker export-ct2`: merge the LoRA adapter into Whisper, convert to CTranslate2 (int8 / float16 / float32 storage), check it loads in faster-whisper; notebook section; tests on a tiny Whisper
 - [x] 6.4b Local CT2 folders as models: `transcribe` / `benchmark` take an export-ct2 folder wherever they take a size (validation, labels, "auto" compute type follows the stored precision, size on disk in the benchmark table)
-- [ ] 6.4c Speed/accuracy tradeoff table: time + score each precision (WER, term recall, RTF, size) on the test clips, `reports/quantization.md`
+- [x] 6.4c Speed/accuracy tradeoff table: time + score each precision (WER, term recall, RTF, size) on the test clips, `reports/quantization.md`: `notetaker quantize-eval` + notebook cell (real numbers come with 8.2b)
 
 ## Phase 7: API + UI
 - [ ] 7.1 FastAPI backend: upload audio, job status, fetch results
@@ -67,6 +67,6 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 ## Phase 8: Ship it
 - [ ] 8.1 Deploy to Hugging Face Spaces (free tier)
 - [ ] 8.2 Monitoring: request logs, latency, error rate
-- [ ] 8.2b Real results (needs Akshara to start a free Colab/Kaggle GPU session): run `notebooks/finetune_whisper_small.ipynb` with `SMOKE_TEST = False`, commit `reports/finetune.md` + `reports/finetune.json` and put the headline numbers in the README (6.3b and 6.4 real runs)
+- [ ] 8.2b Real results (needs Akshara to start a free Colab/Kaggle GPU session): run `notebooks/finetune_whisper_small.ipynb` with `SMOKE_TEST = False`, commit `reports/finetune.md` + `reports/finetune.json` + `reports/quantization.md` and put the headline numbers in the README (6.3b and 6.4 real runs)
 - [ ] 8.3 README polish: architecture diagram, demo GIF, results tables, how to run
 - [ ] 8.4 Write-up: `docs/case-study.md` covering problem, approach, metrics, lessons
