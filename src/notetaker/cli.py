@@ -1546,6 +1546,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="bootstrap resamples for the WER intervals (default: 2000)",
     )
     qe.add_argument("--seed", type=int, default=0, help="bootstrap seed (default: 0)")
+
+    sv = subcommands.add_parser(
+        "serve",
+        help="run the web API: upload recordings, poll job status, fetch results",
+        description=(
+            "Start the HTTP API (Step 7.1a) with uvicorn. Interactive docs are "
+            "at http://HOST:PORT/docs. Needs: pip install -e '.[api]'"
+        ),
+    )
+    sv.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="address to listen on (default: 127.0.0.1, this computer only; "
+        "use 0.0.0.0 inside Docker or on a server)",
+    )
+    sv.add_argument("--port", type=int, default=8000, help="port (default: 8000)")
+    sv.add_argument(
+        "-m",
+        "--model",
+        type=parse_model_arg,
+        metavar="SIZE_OR_FOLDER",
+        default=None,
+        help="Whisper size or export-ct2 folder for jobs (default: config)",
+    )
     return parser
 
 
@@ -3377,6 +3401,42 @@ def run_quantize_eval_cmd(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_serve(args: argparse.Namespace) -> int:
+    """Handle `notetaker serve`: start the FastAPI app with uvicorn.
+
+    uvicorn is an ASGI server: the program that listens on a network port,
+    turns incoming bytes into requests for the FastAPI app, and sends the
+    app's replies back. FastAPI defines what each URL does; uvicorn runs it.
+    """
+    try:
+        import uvicorn
+
+        from notetaker.api import create_app
+    except ImportError:
+        print("Error: the web API needs extra packages: pip install -e '.[api]'")
+        return 1
+    if not 0 < args.port < 65536:
+        print("Error: --port must be between 1 and 65535")
+        return 1
+    try:
+        settings = get_settings()
+    except ValidationError as error:
+        print(f"Invalid configuration:\n{error}")
+        return 1
+
+    from notetaker.jobs import transcribe_runner
+
+    model_name = args.model or settings.whisper_model
+    app = create_app(runner=transcribe_runner(model_name=model_name))
+    print(
+        f"Serving on http://{args.host}:{args.port} (docs at /docs), "
+        f"transcribing with {describe_model(model_name)}; "
+        f"jobs in {settings.output_dir / 'jobs'}"
+    )
+    uvicorn.run(app, host=args.host, port=args.port)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI.
 
@@ -3436,6 +3496,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_export_ct2(args)
     if args.command == "quantize-eval":
         return run_quantize_eval_cmd(args)
+    if args.command == "serve":
+        return run_serve(args)
     # No subcommand given: show usage so the user sees what is available.
     parser.print_help()
     return 0

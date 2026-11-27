@@ -4,6 +4,30 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-26 · Step 7.1a: FastAPI backend for transcription jobs
+
+**What I did**
+- Split Step 7.1 in two: 7.1a (today) is the API itself with transcription jobs; 7.1b adds the notes stage (notes, flashcards, quiz, tasks) to API jobs
+- New module `src/notetaker/jobs.py` (no FastAPI imports):
+  - `Job`: a pydantic record (id, status `queued` / `running` / `done` / `failed`, file name, title, language, timestamps, audio duration, error, list of output files)
+  - `JobStore`: one folder per job under `outputs/jobs/<id>/` with `job.json`, the upload saved as `input.<ext>`, and the results. Uploads are copied in 1 MiB pieces and stop as soon as they pass the size limit; empty or oversized uploads leave nothing behind. Ids are checked against a strict pattern and downloads against the job's own `outputs` list, so no request can reach files outside a job folder. `job.json` is written atomically (temp file, then rename) under a lock
+  - `run_job`: queued -> running -> done, or failed with the error message recorded
+  - `transcribe_runner`: the real work (Whisper via `transcribe`, then `transcript.json` + `transcript.md`); the API takes any runner, so tests pass fakes
+- New module `src/notetaker/api.py`: `create_app(store, runner)` builds a FastAPI app with `GET /health`, `POST /jobs` (202 Accepted + `Location` header; 415 for unknown file types, 413 over the limit, 400 for an empty file), `GET /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/transcript` (409 until done, with the error if it failed) and `GET /jobs/{id}/files/{name}`
+- New command `notetaker serve` (`--host`, `--port`, `-m` size or export folder) running the app with uvicorn; a friendly message if the API packages are missing
+- New setting `NOTETAKER_API_MAX_UPLOAD_MB` (default 500), documented in `.env.example`
+- New optional extra `[api]` (fastapi, python-multipart, uvicorn); `httpx` joins `[dev]` for FastAPI's TestClient. `make install` and `requirements.txt` now install `.[dev,api]`, so CI runs the API tests
+- 38 new tests in `tests/test_jobs.py` and `tests/test_api.py`: store behaviour (chunked copy, size limit at and over the edge, cleanup, bad ids, path tricks in file names, newest-first listing, validated and thread-safe updates), the full upload -> poll -> fetch flow with a fake runner, every error code, a failing runner, an end-to-end test that uploads a generated wav decoded by real ffmpeg and "heard" by a fake model, and `notetaker serve` with a fake uvicorn. `make check` passes (1094 tests, lint clean). Also started the real server and checked `/health`, the 415 path and the generated OpenAPI schema with curl
+- README: "Web API" section with curl examples and an endpoint table
+
+**How it works**
+Transcribing a lecture takes minutes, but web requests should finish in seconds (browsers, proxies and free hosts like Hugging Face Spaces cut off long ones). So the API uses the "submit, then poll" pattern: `POST /jobs` saves the file, creates a job record and immediately answers 202 Accepted with the job id; the transcription runs after the response through FastAPI's `BackgroundTasks`; the client asks `GET /jobs/{id}` every few seconds until the status is `done`, then fetches the results. The job state lives on disk rather than in memory, so a restart does not lose finished work, and all storage goes through one small `JobStore` class, so swapping in Redis or Postgres later would not touch the endpoints. FastAPI reads Python type hints to parse and validate each request (path parameters, the multipart upload, form fields) and to generate interactive docs at `/docs`. The app is built by a factory function, `create_app(store, runner)`, which is dependency injection again: tests hand it a temp-folder store and a fake runner, so the whole HTTP flow is tested in milliseconds with no model and no network.
+
+**Next up**
+Step 7.1b: optional notes stage for API jobs (notes, flashcards, quiz, tasks via the agent pipeline).
+
+---
+
 ## 2026-11-25 · Step 6.4c: Speed / accuracy / size tradeoff across precisions
 
 **What I did**

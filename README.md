@@ -401,5 +401,32 @@ notetaker quantize-eval --from-runs reports/quantization_runs.json
 
 Each model transcribes the held-out test clips with the same settings, timed after one untimed warm-up call. The table shows size on disk, real-time factor, WER, CER, term recall, the WER change against the first model with a 95% paired bootstrap interval, and "drift": the share of words that differ from the first model's own transcripts, which isolates what rounding changed. The report ends with a pick: the fastest model whose WER is not measurably worse than the reference.
 
+### Web API (Phase 7, in progress)
+
+```bash
+pip install -e ".[api]"          # FastAPI + uvicorn (free, open source)
+notetaker serve                  # http://127.0.0.1:8000, interactive docs at /docs
+notetaker serve -m tiny --port 9000
+
+# Upload a recording: replies at once with 202 and a job id
+curl -F file=@lecture01.mp3 -F title="Linear Algebra 1" http://127.0.0.1:8000/jobs
+# Poll until "status" is "done" (or "failed", with an "error" message)
+curl http://127.0.0.1:8000/jobs/<id>
+# Fetch results
+curl http://127.0.0.1:8000/jobs/<id>/transcript
+curl -O http://127.0.0.1:8000/jobs/<id>/files/transcript.md
+```
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/health` | liveness check |
+| POST | `/jobs` | upload audio/video (form fields: `file`, optional `title`, `language`); 202 + job |
+| GET | `/jobs` | all jobs, newest first |
+| GET | `/jobs/{id}` | status: `queued`, `running`, `done` or `failed` |
+| GET | `/jobs/{id}/transcript` | transcript JSON with timestamps (409 until done) |
+| GET | `/jobs/{id}/files/{name}` | download a result file listed in the job's `outputs` |
+
+Each job is a folder under `outputs/jobs/<id>/` holding `job.json`, the upload and the results, so jobs survive a restart. Uploads over `NOTETAKER_API_MAX_UPLOAD_MB` (500 by default) get a 413, unknown file types a 415.
+
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

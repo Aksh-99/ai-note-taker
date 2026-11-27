@@ -151,6 +151,16 @@ class Settings(BaseSettings):
         description="Small, free sentence-transformers model for embeddings.",
     )
 
+    # ---- Phase 7: web API ------------------------------------------------
+    api_max_upload_mb: float = Field(
+        default=500.0,
+        gt=0.0,
+        description=(
+            "Largest recording the API accepts, in MB. A 90-minute lecture "
+            "is roughly 80 MB as mp3 and about 170 MB as 16 kHz wav."
+        ),
+    )
+
     # A "validator" is a hook pydantic runs on a value before storing it.
     # Environment variables are always strings, so a blank line such as
     # `NOTETAKER_LANGUAGE=` gives "" rather than None. This turns blank values

@@ -6,9 +6,10 @@
 # .PHONY tells make these targets are commands, not files to build.
 .PHONY: install lint format test check record-fixtures
 
-# Install the package in editable mode plus dev tools (pytest, ruff).
+# Install the package in editable mode plus dev tools (pytest, ruff) and the
+# web API packages (FastAPI, uvicorn), whose tests run in CI.
 install:
-	pip install -e ".[dev]"
+	pip install -e ".[dev,api]"
 
 # Lint (find problems) and verify formatting without changing files.
 lint:

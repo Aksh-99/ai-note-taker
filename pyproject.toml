@@ -54,6 +54,18 @@ dev = [
     # Independent iCalendar parser, used only in tests to prove the .ics
     # files we write by hand (todo.py) can be read by real software.
     "icalendar>=5.0",
+    # HTTP client that FastAPI's TestClient uses to call the API in tests.
+    "httpx>=0.27",
+]
+
+# Web API (api.py, Step 7.1). FastAPI defines the endpoints, python-multipart
+# parses file uploads, uvicorn is the server that runs the app. All free and
+# open source (MIT / BSD); small, pure-Python installs:
+#   pip install -e ".[api]"
+api = [
+    "fastapi>=0.110",
+    "python-multipart>=0.0.9",
+    "uvicorn>=0.29",
 ]
 
 # Neural embeddings for search across lectures (embeddings.py). Optional
