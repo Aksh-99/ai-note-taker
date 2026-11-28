@@ -4,6 +4,26 @@ One entry per work session, newest first. Each entry covers what was built, how 
 
 ---
 
+## 2026-11-27 · Step 7.1b: Notes for API jobs
+
+**What I did**
+- New upload form fields on `POST /jobs`: `steps` (`all`, or a comma list such as `notes,flashcards`), `lecture_date` (YYYY-MM-DD) and `class_days` (e.g. `mon,wed,fri`). They are checked before the upload is saved, so a typo gets a 400 in milliseconds and leaves nothing on disk
+- `Job` gained `steps`, `lecture_date`, `class_days` and `step_errors`
+- New `notes_runner(base, client_factory, options)` in `src/notetaker/jobs.py`: wraps the transcription runner, then runs the Step 4.1 LangGraph pipeline on the new transcript and writes its files (notes, concepts, flashcards incl. Anki CSV, quiz, tasks, `todo.json`, `tasks.ics`, `pipeline.json`) into the job folder. Every file is added to the job's `outputs`, so the existing download endpoint serves them
+- The LLM client is built only when a job needs one, so `notetaker serve` still starts with no LLM configured and transcript-only jobs are unchanged
+- Fail soft: a missing API key or a failed stage goes into `step_errors` and the job is still `done` with whatever worked
+- New endpoint `GET /jobs/{id}/notes` (404 if notes were not asked for or the stage failed, with the reason; 409 until done). Downloads of `.csv` and `.ics` now get `text/csv` and `text/calendar` content types
+- 12 new tests in `tests/test_api_notes.py`, all offline. The main one uploads through the API with `steps=all`, replays the recorded LLM cassette from Step 4.4, and checks the job writes byte-identical `notes.json`, `flashcards.csv`, `quiz.json` and `todo.json` to the agent golden files. Others cover form parsing, offline tasks with no client, a missing key, garbage LLM replies and every error code. `make check` passes (1106 tests, lint clean); also ran the real server and checked the 400 path and the new route in the OpenAPI schema
+- README: Web API section now shows the notes flow and the new fields
+
+**How it works**
+The API already ran a "runner" function for each job (transcribe the upload, write the transcript). Instead of editing that function, `notes_runner` wraps it: it calls the original runner, then, if the job asked for any steps, loads the transcript it just wrote and hands it to the same agent pipeline the `notetaker agent` command uses. This is the decorator pattern: a function that takes a function and returns a new one with extra behaviour, which keeps transcription and notes separately testable. The LLM client comes from a factory function that is only called when needed (lazy creation), so a server with no API key still transcribes. Per-job choices are merged into the default pipeline options with `dataclasses.replace`, which makes a modified copy and re-runs validation. The strongest test reuses the recorded LLM conversation from Step 4.4: same transcript and settings mean the same prompts, so the replayed answers produce exactly the golden files, proving the API path and the CLI path give identical results without any network calls.
+
+**Next up**
+Step 7.2: background job queue for transcription.
+
+---
+
 ## 2026-11-26 · Step 7.1a: FastAPI backend for transcription jobs
 
 **What I did**

@@ -415,18 +415,27 @@ curl http://127.0.0.1:8000/jobs/<id>
 # Fetch results
 curl http://127.0.0.1:8000/jobs/<id>/transcript
 curl -O http://127.0.0.1:8000/jobs/<id>/files/transcript.md
+
+# Transcript plus notes, key concepts, flashcards, quiz and tasks (uses the
+# LLM from your settings: Ollama locally, or the Groq / Hugging Face free tier)
+curl -F file=@lecture01.mp3 -F steps=all -F lecture_date=2026-11-13 \
+     -F class_days=mon,wed,fri http://127.0.0.1:8000/jobs
+curl http://127.0.0.1:8000/jobs/<id>/notes
+curl -O http://127.0.0.1:8000/jobs/<id>/files/flashcards.csv   # Anki import
+curl -O http://127.0.0.1:8000/jobs/<id>/files/tasks.ics        # calendar
 ```
 
 | Method | Path | What it does |
 |---|---|---|
 | GET | `/health` | liveness check |
-| POST | `/jobs` | upload audio/video (form fields: `file`, optional `title`, `language`); 202 + job |
+| POST | `/jobs` | upload audio/video (form fields: `file`, optional `title`, `language`, `steps` (`all` or e.g. `notes,quiz`), `lecture_date`, `class_days`); 202 + job |
 | GET | `/jobs` | all jobs, newest first |
 | GET | `/jobs/{id}` | status: `queued`, `running`, `done` or `failed` |
 | GET | `/jobs/{id}/transcript` | transcript JSON with timestamps (409 until done) |
+| GET | `/jobs/{id}/notes` | structured notes JSON, for jobs uploaded with the notes step |
 | GET | `/jobs/{id}/files/{name}` | download a result file listed in the job's `outputs` |
 
-Each job is a folder under `outputs/jobs/<id>/` holding `job.json`, the upload and the results, so jobs survive a restart. Uploads over `NOTETAKER_API_MAX_UPLOAD_MB` (500 by default) get a 413, unknown file types a 415.
+Each job is a folder under `outputs/jobs/<id>/` holding `job.json`, the upload and the results, so jobs survive a restart. Uploads over `NOTETAKER_API_MAX_UPLOAD_MB` (500 by default) get a 413, unknown file types a 415. If a notes stage fails (or no LLM is configured), the job is still `done` with its transcript, and the reason is listed in `step_errors`.
 
 ## Status
 Early development. See [ROADMAP.md](ROADMAP.md) for the plan and [DEVLOG.md](DEVLOG.md) for progress.

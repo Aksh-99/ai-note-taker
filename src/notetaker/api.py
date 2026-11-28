@@ -1,4 +1,4 @@
-"""HTTP API for the note taker, built with FastAPI (Step 7.1a).
+"""HTTP API for the note taker, built with FastAPI (Steps 7.1a and 7.1b).
 
 Endpoints (open http://localhost:8000/docs for interactive docs, which
 FastAPI generates automatically from the code below):
@@ -8,6 +8,7 @@ FastAPI generates automatically from the code below):
     GET  /jobs                         list jobs, newest first
     GET  /jobs/{id}                    one job's status
     GET  /jobs/{id}/transcript         the transcript as JSON, once done
+    GET  /jobs/{id}/notes              the study notes as JSON, if requested
     GET  /jobs/{id}/files/{name}       download a result file (e.g. transcript.md)
 
 The "submit, then poll" pattern:
@@ -23,11 +24,21 @@ The "submit, then poll" pattern:
     Step 7.2 replaces this with a proper job queue so jobs survive restarts
     and do not compete with requests.
 
+Notes (Step 7.1b):
+    Add the form field `steps=all` (or e.g. `steps=notes,flashcards`) to an
+    upload and, after transcription, the job runs the Step 4.1 agent
+    pipeline: notes, key concepts, flashcards, quiz and tasks. Every file it
+    writes is listed in the job's `outputs` and can be downloaded through
+    /jobs/{id}/files/{name}. Optional `lecture_date` (YYYY-MM-DD) and
+    `class_days` (e.g. "mon,wed,fri") help the tasks stage turn "due
+    Friday" into a real date.
+
 Run it with `notetaker serve` (needs `pip install -e ".[api]"`).
 """
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -44,13 +55,16 @@ from fastapi import (
 from fastapi.responses import FileResponse
 
 from notetaker import __version__
+from notetaker.agent import STEP_ORDER
 from notetaker.config import get_settings
+from notetaker.dates import parse_weekdays
 from notetaker.jobs import (
     Job,
     JobNotFoundError,
     JobRunner,
     JobStore,
     UploadTooLargeError,
+    notes_runner,
     run_job,
     transcribe_runner,
 )
@@ -62,7 +76,48 @@ AUDIO_EXTENSIONS = frozenset(
 )
 
 # Content types for result downloads, so browsers show them sensibly.
-_MEDIA_TYPES = {".json": "application/json", ".md": "text/markdown; charset=utf-8"}
+_MEDIA_TYPES = {
+    ".json": "application/json",
+    ".md": "text/markdown; charset=utf-8",
+    ".csv": "text/csv; charset=utf-8",  # flashcards.csv, for Anki import
+    ".ics": "text/calendar; charset=utf-8",  # tasks.ics, for calendar apps
+}
+
+
+def parse_steps(text: str | None) -> list[str]:
+    """Turn the `steps` form field into pipeline stage names.
+
+    "" or None -> [] (transcript only); "all" -> every stage; otherwise a
+    comma-separated list such as "notes, quiz". Duplicates are dropped and
+    the result is put in pipeline order. Raises ValueError for unknown names,
+    which the endpoint turns into a 400 reply before any work starts.
+    """
+    names = [n.strip().lower() for n in (text or "").split(",") if n.strip()]
+    if names == ["all"]:
+        return list(STEP_ORDER)
+    unknown = [n for n in names if n not in STEP_ORDER]
+    if unknown:
+        raise ValueError(
+            f"unknown step(s) {', '.join(unknown)}; use 'all' or any of "
+            f"{', '.join(STEP_ORDER)}"
+        )
+    return [s for s in STEP_ORDER if s in names]
+
+
+def parse_job_options(
+    steps: str | None, lecture_date: str | None, class_days: str | None
+) -> dict[str, Any]:
+    """Validate the optional notes fields of an upload (ValueError if bad)."""
+    day = None
+    if (lecture_date or "").strip():
+        try:
+            day = date.fromisoformat(lecture_date.strip())
+        except ValueError:
+            raise ValueError(
+                f"lecture_date must look like 2026-11-13, got {lecture_date!r}"
+            ) from None
+    days = parse_weekdays(class_days.split(",")) if (class_days or "").strip() else ()
+    return {"steps": parse_steps(steps), "lecture_date": day, "class_days": days}
 
 
 def create_app(
@@ -77,11 +132,12 @@ def create_app(
     makes a fresh app wired to the given store and runner. Tests pass a store
     in a temp folder and a fake runner, so no model is loaded and nothing is
     written to the real outputs folder. Leaving the arguments empty gives the
-    real setup (jobs under NOTETAKER_OUTPUT_DIR/jobs, Whisper as the runner).
+    real setup (jobs under NOTETAKER_OUTPUT_DIR/jobs, Whisper as the runner,
+    followed by the notes pipeline for jobs that ask for it).
     """
     settings = get_settings()
     store = store or JobStore(settings.output_dir / "jobs")
-    runner = runner or transcribe_runner()
+    runner = runner or notes_runner(transcribe_runner())
     limit_mb = settings.api_max_upload_mb if max_upload_mb is None else max_upload_mb
     max_bytes = int(limit_mb * 1024 * 1024)
 
@@ -119,6 +175,19 @@ def create_app(
         language: Annotated[
             str | None, Form(description="e.g. 'en'; empty = use the setting")
         ] = None,
+        steps: Annotated[
+            str | None,
+            Form(
+                description="Notes stages to run after transcription: 'all' "
+                f"or a comma list of {', '.join(STEP_ORDER)}; empty = none"
+            ),
+        ] = None,
+        lecture_date: Annotated[
+            str | None, Form(description="YYYY-MM-DD, for task due dates")
+        ] = None,
+        class_days: Annotated[
+            str | None, Form(description="e.g. 'mon,wed,fri', for 'next class'")
+        ] = None,
     ) -> Job:
         """Upload a recording and start transcribing it in the background."""
         filename = file.filename or ""
@@ -129,6 +198,12 @@ def create_app(
                 f"unsupported file type {suffix or '(none)'!r}; "
                 f"use one of {', '.join(sorted(AUDIO_EXTENSIONS))}",
             )
+        # Check the cheap form fields first, so a typo fails in milliseconds
+        # instead of after the whole upload has been saved.
+        try:
+            options = parse_job_options(steps, lecture_date, class_days)
+        except ValueError as error:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, str(error)) from None
         try:
             # `file.file` is the raw upload stream; the store copies it to
             # disk piece by piece, stopping early if it is over the limit.
@@ -138,6 +213,7 @@ def create_app(
                 title=(title or "").strip() or None,
                 language=(language or "").strip() or None,
                 max_bytes=max_bytes,
+                **options,
             )
         except UploadTooLargeError as error:
             # 413 "Content Too Large". Written as a number because Starlette
@@ -175,6 +251,31 @@ def create_app(
             )
         path = store.job_dir(job_id) / "transcript.json"
         return FileResponse(path, media_type="application/json")
+
+    @app.get("/jobs/{job_id}/notes")
+    def get_notes(job_id: str) -> Any:
+        """The structured notes JSON, for jobs uploaded with the notes step."""
+        job = get_job_or_404(job_id)
+        if "notes" not in job.steps:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                "this job did not ask for notes; upload with steps=all or steps=notes",
+            )
+        if job.status != "done":
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"job is {job.status}; the notes are ready when it is done"
+                + (f" (error: {job.error})" if job.error else ""),
+            )
+        if "notes.json" not in job.outputs:
+            # The job finished but the notes stage failed (fail soft): say why.
+            reasons = "; ".join(e["error"] for e in job.step_errors) or "unknown"
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, f"the notes stage failed: {reasons}"
+            )
+        return FileResponse(
+            store.job_dir(job_id) / "notes.json", media_type="application/json"
+        )
 
     @app.get("/jobs/{job_id}/files/{name}")
     def get_file(job_id: str, name: str) -> FileResponse:

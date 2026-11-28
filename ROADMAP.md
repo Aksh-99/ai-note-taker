@@ -60,7 +60,7 @@ Rule for every step: free/open models only, no paid API keys. Code must run and 
 
 ## Phase 7: API + UI
 - [x] 7.1a FastAPI backend for transcription: on-disk job store, `POST /jobs` upload (type + size checks), job status, transcript + file downloads, `notetaker serve`; tests with fake runners
-- [ ] 7.1b Notes for API jobs: optional notes stage after transcription (agent pipeline: notes, flashcards, quiz, tasks), results listed in the job and downloadable; tests with a fake LLM
+- [x] 7.1b Notes for API jobs: optional notes stage after transcription (agent pipeline: notes, flashcards, quiz, tasks), results listed in the job and downloadable; tests with a fake LLM
 - [ ] 7.2 Background job queue for transcription
 - [ ] 7.3 Web UI (Gradio or Streamlit): upload, view notes, flashcards, search
 - [ ] 7.4 Dockerfile + docker-compose for local run

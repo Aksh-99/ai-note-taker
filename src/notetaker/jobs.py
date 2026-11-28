@@ -1,4 +1,4 @@
-"""A tiny on-disk job store for the web API (Step 7.1a).
+"""A tiny on-disk job store for the web API (Steps 7.1a and 7.1b).
 
 The problem it solves:
     Transcribing a lecture takes minutes, far longer than a web request should
@@ -14,6 +14,9 @@ Layout on disk (one folder per job, under NOTETAKER_OUTPUT_DIR/jobs/):
         input.mp3         the uploaded file, saved under a fixed name
         transcript.json   results, written by the runner when the job is done
         transcript.md
+        notes.json ...    only if the upload asked for the notes stage (7.1b):
+                          notes, concepts, flashcards, quiz, tasks, todo.json,
+                          tasks.ics and pipeline.json, as `notetaker agent`
 
 Why files and not a database?
     One folder per job is easy to inspect by hand, survives a server restart,
@@ -32,9 +35,10 @@ import re
 import threading
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone
+from dataclasses import replace
+from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import BinaryIO, Literal
+from typing import Any, BinaryIO, Literal
 
 from pydantic import BaseModel, Field
 
@@ -85,6 +89,17 @@ class Job(BaseModel):
     error: str | None = None
     # Result file names inside the job folder, e.g. ["transcript.json", ...].
     outputs: list[str] = Field(default_factory=list)
+    # Step 7.1b: which agent stages to run after transcription ("notes",
+    # "concepts", "flashcards", "quiz", "tasks"). Empty = transcript only.
+    steps: list[str] = Field(default_factory=list)
+    # For the tasks stage: the lecture date that "due Friday" counts from
+    # (ISO "2026-11-13"), and the weekdays the class meets (Monday=0).
+    lecture_date: str | None = None
+    class_days: list[int] = Field(default_factory=list)
+    # Stages that failed, e.g. [{"step": "quiz", "error": "LLMError: ..."}].
+    # The job is still "done" when the transcript worked: a failed quiz
+    # should not throw away a finished transcript and notes.
+    step_errors: list[dict[str, str]] = Field(default_factory=list)
 
 
 # A runner does the real work for one job. It receives the job record, the
@@ -140,6 +155,9 @@ class JobStore:
         title: str | None = None,
         language: str | None = None,
         max_bytes: int | None = None,
+        steps: list[str] | tuple[str, ...] = (),
+        lecture_date: date | None = None,
+        class_days: list[int] | tuple[int, ...] = (),
     ) -> Job:
         """Save an upload and register a new queued job.
 
@@ -160,6 +178,9 @@ class JobStore:
             language=language or None,
             created_at=now,
             updated_at=now,
+            steps=list(steps),
+            lecture_date=lecture_date.isoformat() if lecture_date else None,
+            class_days=list(class_days),
         )
         folder = self.job_dir(job.id)
         folder.mkdir(parents=True)
@@ -268,6 +289,80 @@ def transcribe_runner(
         return {
             "outputs": [json_path.name, md_path.name],
             "duration": round(transcript.duration, 3),
+        }
+
+    return run
+
+
+def notes_runner(
+    base: JobRunner,
+    client_factory: Callable[[], Any] | None = None,
+    options: Any | None = None,
+) -> JobRunner:
+    """Wrap a transcription runner so it also writes notes (Step 7.1b).
+
+    This is the "decorator pattern" again (as in agent.as_node): it takes a
+    runner and returns a new runner that does the same work and then a bit
+    more. Steps:
+
+    1. Run `base` (normally Whisper), which writes transcript.json.
+    2. If the job asked for no agent steps, stop: exactly the old behaviour.
+    3. Otherwise build an LLM client, run the LangGraph pipeline from
+       Step 4.1 on the transcript and write its files next to it.
+
+    `client_factory` is a zero-argument function returning an LLM client.
+    It is called only when a job actually needs one, so the server starts
+    fine without any LLM configured, and transcript-only jobs never need
+    one. The default, `make_client`, reads the provider (Ollama, Groq or
+    Hugging Face free tier) from the settings; tests pass a fake.
+
+    `options` is a `PipelineOptions` with the defaults for every job
+    (chunk size, number of cards, ...). The per-job choices (steps, lecture
+    date, class days) are filled in with `dataclasses.replace`, which copies
+    a dataclass with some fields changed and leaves the original untouched.
+
+    Fail soft, like the pipeline itself: a missing API key or a failing
+    stage is recorded in `step_errors` and the job is still "done", because
+    the transcript (and any stages that did work) are worth keeping.
+    """
+
+    def run(job: Job, audio_path: Path, out_dir: Path) -> dict:
+        result = base(job, audio_path, out_dir)
+        if not job.steps:
+            return result
+        # Imported here: transcript-only servers never load the agent code.
+        from notetaker.agent import PipelineOptions, run_pipeline, write_pipeline
+        from notetaker.llm import LLMError, make_client
+        from notetaker.transcribe import Transcript
+
+        job_options = replace(
+            options or PipelineOptions(),
+            steps=tuple(job.steps),
+            lecture_date=(
+                date.fromisoformat(job.lecture_date) if job.lecture_date else None
+            ),
+            class_days=tuple(job.class_days),
+        )
+        client = None
+        if job_options.needs_llm:
+            try:
+                client = (client_factory or make_client)()
+            except LLMError as error:
+                # e.g. provider=groq but no GROQ_API_KEY: keep the transcript.
+                return {
+                    **result,
+                    "step_errors": [
+                        {"step": "llm", "error": f"{type(error).__name__}: {error}"}
+                    ],
+                }
+
+        transcript = Transcript.load_json(out_dir / "transcript.json")
+        pipeline = run_pipeline(transcript, client, job_options, title=job.title)
+        written = write_pipeline(pipeline, out_dir)
+        return {
+            **result,
+            "outputs": [*result.get("outputs", []), *(p.name for p in written)],
+            "step_errors": pipeline.errors,
         }
 
     return run
